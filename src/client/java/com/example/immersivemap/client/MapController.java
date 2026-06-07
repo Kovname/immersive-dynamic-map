@@ -22,6 +22,7 @@ public final class MapController {
     private static final List<Marker> MARKERS = new ArrayList<>();
 
     private static boolean active;
+    private static boolean renderActive;
     private static boolean followPlayer;
     private static int centerX;
     private static int centerZ;
@@ -57,14 +58,18 @@ public final class MapController {
             return;
         }
 
+        boolean wasRendering = renderActive;
         MapConfig config = AutoConfig.getConfigHolder(MapConfig.class).getConfig();
         active = true;
+        renderActive = true;
         lastWorld = client.world;
         followPlayer = hasStoredView ? followPlayer : config.followPlayerByDefault;
         holdMode = hasStoredView ? holdMode : config.defaultCompactLeftHand ? HoldMode.LEFT_HAND : HoldMode.BOTH_HANDS;
         zoomScale = hasStoredView ? zoomScale : MathHelper.clamp(config.defaultMapScale, 0, 4);
-        equipProgress = 0.0F;
-        previousEquipProgress = 0.0F;
+        if (!wasRendering) {
+            equipProgress = 0.0F;
+            previousEquipProgress = 0.0F;
+        }
 
         if (client.player.isUsingItem() && client.interactionManager != null) {
             client.interactionManager.stopUsingItem(client.player);
@@ -87,7 +92,17 @@ public final class MapController {
         previousEquipProgress = equipProgress;
         MapConfig config = AutoConfig.getConfigHolder(MapConfig.class).getConfig();
         float animationSpeed = MathHelper.clamp(config.equipAnimationSpeed, 0.05F, 1.0F);
-        equipProgress = active ? Math.min(1.0F, equipProgress + animationSpeed) : 0.0F;
+        if (active) {
+            renderActive = true;
+            equipProgress = Math.min(1.0F, equipProgress + animationSpeed);
+        } else if (renderActive) {
+            equipProgress = Math.max(0.0F, equipProgress - animationSpeed);
+            if (equipProgress <= 0.0F) {
+                renderActive = false;
+            }
+        } else {
+            equipProgress = 0.0F;
+        }
 
         if (!active) {
             return;
@@ -95,6 +110,9 @@ public final class MapController {
 
         if (client.player == null || client.world == null) {
             active = false;
+            renderActive = false;
+            equipProgress = 0.0F;
+            previousEquipProgress = 0.0F;
             return;
         }
 
@@ -122,8 +140,12 @@ public final class MapController {
         return active;
     }
 
+    public static boolean isRendering() {
+        return renderActive;
+    }
+
     public static boolean shouldRenderInHands(MinecraftClient client) {
-        return active
+        return renderActive
                 && client.player != null
                 && client.world != null
                 && client.currentScreen == null
@@ -149,6 +171,7 @@ public final class MapController {
     public static void close() {
         if (active) {
             active = false;
+            renderActive = equipProgress > 0.0F;
             dirty = true;
         }
     }
@@ -293,6 +316,10 @@ public final class MapController {
 
     public static void loadState(MinecraftClient client, SavedState state) {
         MARKERS.clear();
+        active = false;
+        renderActive = false;
+        equipProgress = 0.0F;
+        previousEquipProgress = 0.0F;
         lastClickedMarker = null;
         lastMarkerClickMs = 0L;
         lastWorld = client.world;
