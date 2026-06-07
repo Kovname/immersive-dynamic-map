@@ -158,13 +158,10 @@ public abstract class HeldItemRendererMixin {
             matrices.pop();
         }
 
-        matrices.translate(side * 0.51F, -0.08F + vanillaEquip * -1.2F, -0.75F);
-        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(side * -3.0F));
-        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(2.0F));
-        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(side * -2.0F));
+        matrices.translate(side * 0.51F, -0.08F, -0.75F);
 
         MapConfig config = AutoConfig.getConfigHolder(MapConfig.class).getConfig();
-        float scale = MathHelper.clamp(config.compactMapScale, 0.45F, 1.5F) * 0.92F;
+        float scale = MathHelper.clamp(config.compactMapScale, 0.75F, 1.5F);
         matrices.scale(scale, scale, scale);
         renderMapQuad(matrices, vertexConsumers, light);
         matrices.pop();

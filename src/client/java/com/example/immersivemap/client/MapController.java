@@ -17,7 +17,7 @@ import java.util.List;
 public final class MapController {
     private static final int MAP_EDGE_PAN_THRESHOLD = 48;
     private static final int MARKER_PICK_RADIUS = 4;
-    private static final double FOLLOW_CURSOR_RETURN_SPEED = 0.18D;
+    private static final double FOLLOW_CENTER_RETURN_SPEED = 0.18D;
     private static final long DOUBLE_CLICK_MS = 350L;
     private static final List<Marker> MARKERS = new ArrayList<>();
 
@@ -111,10 +111,9 @@ public final class MapController {
         }
 
         if (followPlayer) {
-            centerX = client.player.getBlockX();
-            centerZ = client.player.getBlockZ();
             if (!client.options.useKey.isPressed()) {
-                returnCursorToPlayer(client);
+                centerX = approach(centerX, client.player.getBlockX(), FOLLOW_CENTER_RETURN_SPEED);
+                centerZ = approach(centerZ, client.player.getBlockZ(), FOLLOW_CENTER_RETURN_SPEED);
             }
         }
     }
@@ -161,10 +160,6 @@ public final class MapController {
 
     public static void toggleFollowPlayer(MinecraftClient client) {
         followPlayer = !followPlayer;
-        if (followPlayer && client.player != null) {
-            centerX = client.player.getBlockX();
-            centerZ = client.player.getBlockZ();
-        }
         dirty = true;
     }
 
@@ -365,26 +360,6 @@ public final class MapController {
         } else if (offsetZ < -threshold) {
             centerZ = cursorZ + threshold;
         }
-    }
-
-    private static void returnCursorToPlayer(MinecraftClient client) {
-        int targetX = client.player.getBlockX();
-        int targetZ = client.player.getBlockZ();
-        int nextX = approach(cursorX, targetX, FOLLOW_CURSOR_RETURN_SPEED);
-        int nextZ = approach(cursorZ, targetZ, FOLLOW_CURSOR_RETURN_SPEED);
-
-        if (nextX == cursorX && nextZ == cursorZ) {
-            cursorX = targetX;
-            cursorZ = targetZ;
-            cursorRemainderX = 0.0D;
-            cursorRemainderZ = 0.0D;
-            return;
-        }
-
-        cursorX = nextX;
-        cursorZ = nextZ;
-        cursorRemainderX = 0.0D;
-        cursorRemainderZ = 0.0D;
     }
 
     private static int approach(int value, int target, double speed) {

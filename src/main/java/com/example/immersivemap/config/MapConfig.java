@@ -19,7 +19,7 @@ public class MapConfig implements ConfigData {
     public float handMapScale = 1.0f;
 
     @ConfigEntry.Gui.Tooltip
-    public float compactMapScale = 0.85f;
+    public float compactMapScale = 1.0f;
 
     @ConfigEntry.Gui.Tooltip
     public float cursorSensitivity = 0.18f;
