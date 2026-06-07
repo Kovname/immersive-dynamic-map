@@ -148,23 +148,23 @@ public abstract class HeldItemRendererMixin {
         matrices.push();
         Arm arm = Arm.LEFT;
         float side = -1.0F;
-        float hidden = 1.0F - equipProgress;
+        float vanillaEquip = 1.0F - equipProgress;
 
         if (client.player != null && !client.player.isInvisible() && client.player.getOffHandStack().isEmpty()) {
             matrices.push();
-            matrices.translate(side * 0.04F, -0.14F + hidden * 0.18F, -0.08F);
-            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(side * 3.0F));
-            renderArmHoldingItem(matrices, vertexConsumers, light, hidden, 0.0F, arm);
+            matrices.translate(side * 0.125F, -0.125F, 0.0F);
+            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(side * 10.0F));
+            renderArmHoldingItem(matrices, vertexConsumers, light, vanillaEquip, 0.0F, arm);
             matrices.pop();
         }
 
-        matrices.translate(side * (0.52F + hidden * 0.18F), -0.52F + hidden * 0.52F, -0.9F + hidden * 0.12F);
-        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(side * (-18.0F + hidden * 12.0F)));
-        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(13.0F + hidden * 22.0F));
-        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(side * (-5.0F + hidden * 8.0F)));
+        matrices.translate(side * 0.51F, -0.08F + vanillaEquip * -1.2F, -0.75F);
+        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(side * -3.0F));
+        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(2.0F));
+        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(side * -2.0F));
 
         MapConfig config = AutoConfig.getConfigHolder(MapConfig.class).getConfig();
-        float scale = MathHelper.clamp(config.compactMapScale, 0.45F, 1.5F) * (0.62F + 0.22F * equipProgress);
+        float scale = MathHelper.clamp(config.compactMapScale, 0.45F, 1.5F) * 0.92F;
         matrices.scale(scale, scale, scale);
         renderMapQuad(matrices, vertexConsumers, light);
         matrices.pop();
@@ -172,8 +172,7 @@ public abstract class HeldItemRendererMixin {
 
     private float easedEquipProgress(float tickDelta) {
         float progress = MathHelper.clamp(MapController.getEquipProgress(tickDelta), 0.0F, 1.0F);
-        float hidden = 1.0F - progress;
-        return 1.0F - hidden * hidden * hidden;
+        return progress * progress * (3.0F - 2.0F * progress);
     }
 
     private float getMapAngle(float pitch) {

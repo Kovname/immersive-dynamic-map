@@ -139,6 +139,10 @@ public final class MapController {
         return active && holdMode == HoldMode.BOTH_HANDS;
     }
 
+    public static boolean isCompactLeftHandActive() {
+        return active && holdMode == HoldMode.LEFT_HAND;
+    }
+
     public static void close() {
         if (active) {
             active = false;
@@ -148,7 +152,7 @@ public final class MapController {
 
     public static boolean shouldAutoCloseOnHotbarChange() {
         MapConfig config = AutoConfig.getConfigHolder(MapConfig.class).getConfig();
-        return active && config.autoCloseOnHotbarChange;
+        return isInteractive() && config.autoCloseOnHotbarChange;
     }
 
     public static void toggleFollowPlayer(MinecraftClient client) {
