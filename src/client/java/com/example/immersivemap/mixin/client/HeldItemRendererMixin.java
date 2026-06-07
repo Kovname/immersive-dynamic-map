@@ -14,6 +14,8 @@ import net.minecraft.client.texture.MapDecorationsAtlasManager;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.render.item.HeldItemRenderer;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.item.map.MapDecoration;
 import net.minecraft.item.map.MapDecorationType;
 import net.minecraft.item.map.MapDecorationTypes;
@@ -95,6 +97,7 @@ public abstract class HeldItemRendererMixin {
         if (!MapController.shouldRenderInHands(client)
                 || MapController.getHoldMode() != MapController.HoldMode.LEFT_HAND
                 || !player.getOffHandStack().isEmpty()
+                || isVanillaMapItem(player.getMainHandStack())
                 || player.isUsingSpyglass()) {
             return;
         }
@@ -105,12 +108,7 @@ public abstract class HeldItemRendererMixin {
                 MapController.getCenterZ(),
                 MapController.getZoomScale());
 
-        float lastRenderPitch = MathHelper.lerp(tickDelta, player.lastRenderPitch, player.renderPitch);
-        float lastRenderYaw = MathHelper.lerp(tickDelta, player.lastRenderYaw, player.renderYaw);
-
         matrices.push();
-        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees((player.getPitch(tickDelta) - lastRenderPitch) * 0.1F));
-        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees((player.getYaw(tickDelta) - lastRenderYaw) * 0.1F));
         renderMapInLeftHand(matrices, vertexConsumers, light, easedEquipProgress(tickDelta));
         matrices.pop();
 
@@ -164,7 +162,7 @@ public abstract class HeldItemRendererMixin {
         matrices.translate(side * 0.51F, -0.08F + vanillaEquip * -1.2F, -0.75F);
 
         MapConfig config = AutoConfig.getConfigHolder(MapConfig.class).getConfig();
-        float scale = MathHelper.clamp(config.compactMapScale, 0.95F, 1.5F);
+        float scale = MathHelper.clamp(config.compactMapScale, 1.0F, 1.5F);
         matrices.scale(scale, scale, scale);
         renderMapQuad(matrices, vertexConsumers, light);
         matrices.pop();
@@ -174,6 +172,10 @@ public abstract class HeldItemRendererMixin {
     private float easedEquipProgress(float tickDelta) {
         float progress = MathHelper.clamp(MapController.getEquipProgress(tickDelta), 0.0F, 1.0F);
         return progress * progress * (3.0F - 2.0F * progress);
+    }
+
+    private static boolean isVanillaMapItem(ItemStack stack) {
+        return stack.isOf(Items.FILLED_MAP) || stack.isOf(Items.MAP);
     }
 
     private float getMapAngle(float pitch) {

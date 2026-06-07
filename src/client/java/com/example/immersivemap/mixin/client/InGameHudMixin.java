@@ -51,7 +51,9 @@ public abstract class InGameHudMixin {
         PlayerEntity player = getCameraPlayer();
         if (player == null
                 || !MapController.isCompactLeftHandActive()
-                || !player.getOffHandStack().isEmpty()) {
+                || !player.getOffHandStack().isEmpty()
+                || player.getMainHandStack().isOf(Items.FILLED_MAP)
+                || player.getMainHandStack().isOf(Items.MAP)) {
             return;
         }
 

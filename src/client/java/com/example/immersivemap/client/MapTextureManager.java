@@ -366,7 +366,7 @@ public class MapTextureManager implements AutoCloseable {
     }
 
     private boolean isExploredViewPixel(int x, int z) {
-        return x >= 0 && z >= 0 && x < MAP_SIZE && z < MAP_SIZE && viewExplored[index(x, z)];
+        return x < 0 || z < 0 || x >= MAP_SIZE || z >= MAP_SIZE || viewExplored[index(x, z)];
     }
 
     private static int bayer4(int x, int z) {
