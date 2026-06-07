@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "immersive_map",
+  "version": "${version}",
+  "name": "Immersive Dynamic Map",
+  "description": "A handheld map with real-time terrain rendering.",
+  "authors": [
+    "Kovname"
+  ],
+  "contact": {
+    "homepage": "https://github.com/Kovname/immersive-dynamic-map",
+    "sources": "https://github.com/Kovname/immersive-dynamic-map"
+  },
+  "license": "MIT",
+  "icon": "assets/immersivemap/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.example.immersivemap.ImmersiveMapMod"
+    ],
+    "client": [
+      "com.example.immersivemap.ImmersiveMapClient"
+    ],
+    "modmenu": [
+      "com.example.immersivemap.ModMenuIntegration"
+    ]
+  },
+  "mixins": [
+    "immersive_map.mixins.json",
+    {
+      "config": "immersive_map.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.5",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "another-mod": "*"
+  }
+}

@@ -1,0 +1,16 @@
+{
+    "required": true,
+    "package": "com.example.immersivemap.mixin.client",
+    "compatibilityLevel": "JAVA_21",
+    "refmap": "client-immersive-dynamic-map-refmap.json",
+    "mixins": [],
+    "client": [
+        "HeldItemRendererMixin",
+        "MapRendererAccessor",
+        "MinecraftClientMixin",
+        "MouseMixin"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}
