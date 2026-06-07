@@ -26,6 +26,11 @@ public abstract class MinecraftClientMixin {
             }
         }
 
+        if (MapController.isCompactLeftHandActive()) {
+            while (options.swapHandsKey.wasPressed()) {
+            }
+        }
+
         if (!MapController.isInteractive()) {
             return;
         }

@@ -94,6 +94,7 @@ public abstract class HeldItemRendererMixin {
             CallbackInfo ci) {
         if (!MapController.shouldRenderInHands(client)
                 || MapController.getHoldMode() != MapController.HoldMode.LEFT_HAND
+                || !player.getOffHandStack().isEmpty()
                 || player.isUsingSpyglass()) {
             return;
         }
@@ -108,8 +109,8 @@ public abstract class HeldItemRendererMixin {
         float lastRenderYaw = MathHelper.lerp(tickDelta, player.lastRenderYaw, player.renderYaw);
 
         matrices.push();
-        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees((player.getPitch(tickDelta) - lastRenderPitch) * 0.04F));
-        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees((player.getYaw(tickDelta) - lastRenderYaw) * 0.04F));
+        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees((player.getPitch(tickDelta) - lastRenderPitch) * 0.1F));
+        matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees((player.getYaw(tickDelta) - lastRenderYaw) * 0.1F));
         renderMapInLeftHand(matrices, vertexConsumers, light, easedEquipProgress(tickDelta));
         matrices.pop();
 
@@ -123,8 +124,9 @@ public abstract class HeldItemRendererMixin {
             float pitch,
             float equipProgress) {
         float angle = getMapAngle(pitch);
-        matrices.translate(0.0F, 0.36F * (1.0F - equipProgress) + 0.04F + angle * -0.5F, -0.72F);
-        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(angle * -85.0F + 22.0F * (1.0F - equipProgress)));
+        float vanillaEquip = 1.0F - equipProgress;
+        matrices.translate(0.0F, 0.04F + vanillaEquip * -1.2F + angle * -0.5F, -0.72F);
+        matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(angle * -85.0F));
 
         if (client.player != null && !client.player.isInvisible()) {
             matrices.push();
@@ -158,12 +160,14 @@ public abstract class HeldItemRendererMixin {
             matrices.pop();
         }
 
-        matrices.translate(side * 0.51F, -0.08F, -0.75F);
+        matrices.push();
+        matrices.translate(side * 0.51F, -0.08F + vanillaEquip * -1.2F, -0.75F);
 
         MapConfig config = AutoConfig.getConfigHolder(MapConfig.class).getConfig();
         float scale = MathHelper.clamp(config.compactMapScale, 0.95F, 1.5F);
         matrices.scale(scale, scale, scale);
         renderMapQuad(matrices, vertexConsumers, light);
+        matrices.pop();
         matrices.pop();
     }
 
