@@ -161,7 +161,7 @@ public abstract class HeldItemRendererMixin {
         matrices.translate(side * 0.51F, -0.08F, -0.75F);
 
         MapConfig config = AutoConfig.getConfigHolder(MapConfig.class).getConfig();
-        float scale = MathHelper.clamp(config.compactMapScale, 0.75F, 1.5F);
+        float scale = MathHelper.clamp(config.compactMapScale, 0.95F, 1.5F);
         matrices.scale(scale, scale, scale);
         renderMapQuad(matrices, vertexConsumers, light);
         matrices.pop();
