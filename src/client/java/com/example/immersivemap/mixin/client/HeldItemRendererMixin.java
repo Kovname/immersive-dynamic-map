@@ -6,6 +6,7 @@ import com.example.immersivemap.config.MapConfig;
 import me.shedaniel.autoconfig.AutoConfig;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
@@ -18,7 +19,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.item.map.MapDecoration;
 import net.minecraft.item.map.MapDecorationType;
-import net.minecraft.item.map.MapDecorationTypes;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.text.Text;
 import net.minecraft.util.Arm;
@@ -39,6 +39,7 @@ import java.util.Optional;
 @Mixin(HeldItemRenderer.class)
 public abstract class HeldItemRendererMixin {
     private static final RenderLayer MAP_BACKGROUND = RenderLayer.getText(Identifier.ofVanilla("textures/map/map_background.png"));
+    private static final RenderLayer MAP_BACKGROUND_CHECKERBOARD = RenderLayer.getText(Identifier.ofVanilla("textures/map/map_background_checkerboard.png"));
 
     @Shadow
     @Final
@@ -214,9 +215,7 @@ public abstract class HeldItemRendererMixin {
     private void renderDecorations(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light) {
         int order = 0;
 
-        if (client.player != null) {
-            renderDecoration(matrices, vertexConsumers, playerDecoration(), order++, light);
-        }
+        order = renderPlayerHeads(matrices, vertexConsumers, order, light);
 
         MapConfig config = AutoConfig.getConfigHolder(MapConfig.class).getConfig();
         for (MapController.Marker marker : MapController.getMarkers()) {
@@ -235,27 +234,42 @@ public abstract class HeldItemRendererMixin {
         renderCursor(matrices, vertexConsumers, light);
     }
 
-    private MapDecoration playerDecoration() {
-        double x = client.player.getX();
-        double z = client.player.getZ();
-        int blocksPerPixel = MapController.getBlocksPerPixel();
-        float relX = (float) ((x - (double) MapController.getCenterX()) / (double) blocksPerPixel);
-        float relZ = (float) ((z - (double) MapController.getCenterZ()) / (double) blocksPerPixel);
-        RegistryEntry<MapDecorationType> type = MapDecorationTypes.PLAYER;
-        byte decorationX = toDecorationCoordinate(relX);
-        byte decorationZ = toDecorationCoordinate(relZ);
-        byte rotation;
-
-        if (relX >= -63.0F && relZ >= -63.0F && relX <= 63.0F && relZ <= 63.0F) {
-            rotation = (byte) ((int) ((client.player.getYaw() + 8.0F) * 16.0F / 360.0F));
-        } else {
-            type = MapDecorationTypes.PLAYER_OFF_MAP;
-            decorationX = toDecorationCoordinate(MathHelper.clamp(relX, -64.0F, 63.5F));
-            decorationZ = toDecorationCoordinate(MathHelper.clamp(relZ, -64.0F, 63.5F));
-            rotation = 0;
+    private int renderPlayerHeads(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int order, int light) {
+        if (client.world == null) {
+            return order;
         }
 
-        return new MapDecoration(type, decorationX, decorationZ, rotation, Optional.empty());
+        for (AbstractClientPlayerEntity player : client.world.getPlayers()) {
+            if (player.isSpectator()) {
+                continue;
+            }
+
+            double relX = (player.getX() - (double) MapController.getCenterX()) / (double) MapController.getBlocksPerPixel();
+            double relZ = (player.getZ() - (double) MapController.getCenterZ()) / (double) MapController.getBlocksPerPixel();
+            float x = MathHelper.clamp((float) relX + 64.0F, 4.0F, 124.0F);
+            float z = MathHelper.clamp((float) relZ + 64.0F, 4.0F, 124.0F);
+            renderPlayerHead(matrices, vertexConsumers, player, x, z, order++, light);
+        }
+
+        return order;
+    }
+
+    private void renderPlayerHead(
+            MatrixStack matrices,
+            VertexConsumerProvider vertexConsumers,
+            AbstractClientPlayerEntity player,
+            float x,
+            float z,
+            int order,
+            int light) {
+        matrices.push();
+        matrices.translate(x, z, -0.035F - (float) order * 0.001F);
+        drawTexturedRect(vertexConsumers.getBuffer(MAP_BACKGROUND_CHECKERBOARD), matrices.peek().getPositionMatrix(), -4.5F, -4.5F, 4.5F, 4.5F, 0.0F, 0.0F, 1.0F, 1.0F, 0xFF111111, light);
+        drawTexturedRect(vertexConsumers.getBuffer(MAP_BACKGROUND), matrices.peek().getPositionMatrix(), -3.5F, -3.5F, 3.5F, 3.5F, 0.0F, 0.0F, 1.0F, 1.0F, 0xFFFFFFFF, light);
+        VertexConsumer skin = vertexConsumers.getBuffer(RenderLayer.getText(player.getSkinTextures().texture()));
+        drawTexturedRect(skin, matrices.peek().getPositionMatrix(), -3.0F, -3.0F, 3.0F, 3.0F, 8.0F / 64.0F, 8.0F / 64.0F, 16.0F / 64.0F, 16.0F / 64.0F, 0xFFFFFFFF, light);
+        drawTexturedRect(skin, matrices.peek().getPositionMatrix(), -3.0F, -3.0F, 3.0F, 3.0F, 40.0F / 64.0F, 8.0F / 64.0F, 48.0F / 64.0F, 16.0F / 64.0F, 0xFFFFFFFF, light);
+        matrices.pop();
     }
 
     private MapDecoration decorationForWorldPosition(
@@ -330,7 +344,7 @@ public abstract class HeldItemRendererMixin {
             return;
         }
 
-        VertexConsumer buffer = vertexConsumers.getBuffer(RenderLayer.getGuiOverlay());
+        VertexConsumer buffer = vertexConsumers.getBuffer(MAP_BACKGROUND_CHECKERBOARD);
         Matrix4f matrix = matrices.peek().getPositionMatrix();
         drawCursorRect(buffer, matrix, x - 3.0F, z - 0.8F, x + 3.0F, z + 0.8F, 0xD0181C38);
         drawCursorRect(buffer, matrix, x - 0.8F, z - 3.0F, x + 0.8F, z + 3.0F, 0xD0181C38);
@@ -348,6 +362,34 @@ public abstract class HeldItemRendererMixin {
 
     private void colorVertex(VertexConsumer buffer, Matrix4f matrix, float x, float y, int color) {
         buffer.vertex(matrix, x, y, -1.0F)
-                .color(color >> 16 & 255, color >> 8 & 255, color & 255, color >> 24 & 255);
+                .color(color >> 16 & 255, color >> 8 & 255, color & 255, color >> 24 & 255)
+                .texture(0.5F, 0.5F)
+                .light(0xF000F0);
+    }
+
+    private void drawTexturedRect(
+            VertexConsumer buffer,
+            Matrix4f matrix,
+            float left,
+            float top,
+            float right,
+            float bottom,
+            float minU,
+            float minV,
+            float maxU,
+            float maxV,
+            int color,
+            int light) {
+        texturedVertex(buffer, matrix, left, bottom, minU, maxV, color, light);
+        texturedVertex(buffer, matrix, right, bottom, maxU, maxV, color, light);
+        texturedVertex(buffer, matrix, right, top, maxU, minV, color, light);
+        texturedVertex(buffer, matrix, left, top, minU, minV, color, light);
+    }
+
+    private void texturedVertex(VertexConsumer buffer, Matrix4f matrix, float x, float y, float u, float v, int color, int light) {
+        buffer.vertex(matrix, x, y, -1.0F)
+                .color(color >> 16 & 255, color >> 8 & 255, color & 255, color >> 24 & 255)
+                .texture(u, v)
+                .light(light);
     }
 }

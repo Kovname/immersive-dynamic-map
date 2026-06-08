@@ -28,6 +28,7 @@ public class MapTextureManager implements AutoCloseable {
     public static final int MAP_SIZE = 128;
 
     private static final int COLOR_EMPTY = 0x00000000;
+    private static final int BACKGROUND_CHUNKS_PER_TICK = 8;
 
     private final int[] terrainColors = new int[MAP_SIZE * MAP_SIZE];
     private final boolean[] viewExplored = new boolean[MAP_SIZE * MAP_SIZE];
@@ -40,6 +41,7 @@ public class MapTextureManager implements AutoCloseable {
     private int lastCenterX = Integer.MIN_VALUE;
     private int lastCenterZ = Integer.MIN_VALUE;
     private int lastScale = Integer.MIN_VALUE;
+    private int backgroundChunkCursor;
     private boolean dirty;
 
     public MapTextureManager() {
@@ -79,6 +81,47 @@ public class MapTextureManager implements AutoCloseable {
 
             texture.upload();
         }
+    }
+
+    public void tickBackground(World world) {
+        if (world == null) {
+            return;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client.player == null || client.world != world) {
+            return;
+        }
+
+        MapConfig config = AutoConfig.getConfigHolder(MapConfig.class).getConfig();
+        terrainUpdateTicks++;
+        int updateInterval = MathHelper.clamp(config.terrainUpdateIntervalTicks, 1, 3);
+        if (terrainUpdateTicks < updateInterval) {
+            return;
+        }
+
+        terrainUpdateTicks = 0;
+        int viewDistance = MathHelper.clamp(client.options.getClampedViewDistance(), 2, 32);
+        int diameter = viewDistance * 2 + 1;
+        int totalChunks = diameter * diameter;
+        int playerChunkX = ChunkSectionPos.getSectionCoord(client.player.getBlockX());
+        int playerChunkZ = ChunkSectionPos.getSectionCoord(client.player.getBlockZ());
+        BlockPos.Mutable pos = new BlockPos.Mutable();
+        Map<Long, WorldChunk> chunkCache = new LinkedHashMap<>();
+
+        for (int processed = 0; processed < BACKGROUND_CHUNKS_PER_TICK && processed < totalChunks; processed++) {
+            int cursor = Math.floorMod(backgroundChunkCursor++, totalChunks);
+            int chunkX = playerChunkX + cursor % diameter - viewDistance;
+            int chunkZ = playerChunkZ + cursor / diameter - viewDistance;
+            WorldChunk chunk = world.getChunkManager().getWorldChunk(chunkX, chunkZ, false);
+            if (chunk == null || chunk.isEmpty()) {
+                continue;
+            }
+
+            recordLoadedChunk(world, pos, chunkCache, chunkX, chunkZ);
+        }
+
+        trimCache(Math.max(MAP_SIZE * MAP_SIZE, config.cachedMapPixels));
     }
 
     private void initialize() {
@@ -141,6 +184,35 @@ public class MapTextureManager implements AutoCloseable {
         if (color != null) {
             exploredPixels.put(key, color);
             dirty = true;
+        }
+    }
+
+    private void recordLoadedChunk(
+            World world,
+            BlockPos.Mutable pos,
+            Map<Long, WorldChunk> chunkCache,
+            int chunkX,
+            int chunkZ) {
+        int startX = chunkX << 4;
+        int startZ = chunkZ << 4;
+
+        for (int scale = 0; scale <= 4; scale++) {
+            int blocksPerPixel = 1 << scale;
+            int cellsPerChunk = Math.max(1, 16 / blocksPerPixel);
+            for (int x = 0; x < cellsPerChunk; x++) {
+                for (int z = 0; z < cellsPerChunk; z++) {
+                    int worldX = startX + x * blocksPerPixel;
+                    int worldZ = startZ + z * blocksPerPixel;
+                    recordCell(
+                            world,
+                            pos,
+                            chunkCache,
+                            Math.floorDiv(worldX, blocksPerPixel),
+                            Math.floorDiv(worldZ, blocksPerPixel),
+                            scale,
+                            blocksPerPixel);
+                }
+            }
         }
     }
 

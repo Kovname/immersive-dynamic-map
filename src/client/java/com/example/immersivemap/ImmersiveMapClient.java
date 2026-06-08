@@ -43,6 +43,7 @@ public class ImmersiveMapClient implements ClientModInitializer {
             }
 
             getPersistence().tick(client, getManager());
+            getManager().tickBackground(client.world);
             MapController.tick(client);
         });
 
