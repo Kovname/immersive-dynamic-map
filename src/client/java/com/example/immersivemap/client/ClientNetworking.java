@@ -7,6 +7,7 @@ import com.example.immersivemap.map.LayerId;
 import com.example.immersivemap.network.ClientHelloC2S;
 import com.example.immersivemap.network.HoldStateC2S;
 import com.example.immersivemap.network.MapChunksPayload;
+import com.example.immersivemap.network.PlayerHoldStateS2C;
 import com.example.immersivemap.network.PlayerPositionsS2C;
 import com.example.immersivemap.network.ServerHelloS2C;
 import com.example.immersivemap.network.SyncRequestC2S;
@@ -49,6 +50,7 @@ public final class ClientNetworking {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             server = null;
             syncActive = false;
+            HeldMapPoses.clear();
             ImmersiveMapClientState.onJoin(client);
             if (ClientPlayNetworking.canSend(ClientHelloC2S.ID)) {
                 ClientPlayNetworking.send(new ClientHelloC2S(ImmersiveMapMod.PROTOCOL_VERSION));
@@ -69,6 +71,8 @@ public final class ClientNetworking {
             sendHoldState(MapController.currentHoldState());
             updateSync();
         });
+        ClientPlayNetworking.registerGlobalReceiver(PlayerHoldStateS2C.ID,
+                (payload, context) -> HeldMapPoses.set(payload.entityId(), payload.state()));
         ClientPlayNetworking.registerGlobalReceiver(PlayerPositionsS2C.ID,
                 (payload, context) -> ImmersiveMapClientState.players().accept(payload));
         ClientPlayNetworking.registerGlobalReceiver(MapChunksPayload.ID, (payload, context) -> receiveChunks(context.client(), payload));

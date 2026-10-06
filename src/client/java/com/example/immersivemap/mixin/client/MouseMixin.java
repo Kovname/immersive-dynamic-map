@@ -3,6 +3,7 @@ package com.example.immersivemap.mixin.client;
 import com.example.immersivemap.client.MapController;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.Mouse;
+import net.minecraft.client.gui.screen.Screen;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -10,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Holding right click drags the two-handed map instead of turning the camera; the wheel zooms. */
+/** Holding right click moves the map cursor instead of the camera; the wheel zooms, Shift+wheel changes layer. */
 @Mixin(Mouse.class)
 public abstract class MouseMixin {
     @Shadow
@@ -28,7 +29,7 @@ public abstract class MouseMixin {
         if (!MapController.isInteractive() || client.currentScreen != null || !client.options.useKey.isPressed()) {
             return;
         }
-        MapController.pan(cursorDeltaX, cursorDeltaY);
+        MapController.moveCursor(cursorDeltaX, cursorDeltaY);
         cursorDeltaX = 0.0D;
         cursorDeltaY = 0.0D;
         ci.cancel();
@@ -39,7 +40,11 @@ public abstract class MouseMixin {
         if (!MapController.isInteractive() || client.currentScreen != null || window != client.getWindow().getHandle() || vertical == 0.0D) {
             return;
         }
-        MapController.zoom(vertical);
+        if (Screen.hasShiftDown()) {
+            MapController.changeLayer(client, vertical > 0 ? 1 : -1);
+        } else {
+            MapController.zoom(vertical);
+        }
         ci.cancel();
     }
 }

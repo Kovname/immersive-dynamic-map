@@ -39,5 +39,6 @@
   },
   "recommends": {
     "modmenu": "*"
-  }
+  },
+  "icon": "assets/immersive_map/icon.png"
 }
