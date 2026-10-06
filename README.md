@@ -1,124 +1,51 @@
 # Immersive Dynamic Map
 
-Immersive Dynamic Map is a Fabric client-side Minecraft mod that gives the player an always-available handheld map without adding a real inventory item. The map is opened with a hotkey, rendered in first person, and designed to stay close to vanilla Minecraft's held map presentation.
+A Fabric mod for Minecraft 1.21.1 that gives you a map you can always take out, drawn and held exactly like a vanilla filled map, but it covers the whole world you have explored.
 
 ## Features
 
-- Always-available map opened by keybind, not an inventory item.
-- Full two-hand map mode with vanilla-style map frame and map decorations.
-- Compact left-hand mode that leaves the right hand usable.
-- Real-time terrain rendering from already loaded chunks.
-- Vanilla-style player and off-map player icons.
-- Banner-style markers using vanilla map decoration sprites.
-- Marker names, colors, editing, and deletion.
-- Pixel-dithered unexplored edges over the vanilla map parchment background.
-- Zoom in and out with the mouse wheel while using the interactive map.
-- Optional follow-player mode.
-- Per-world client-side persistence for view state, markers, and discovered map pixels.
-- Mod Menu integration through Cloth Config.
+- **Looks vanilla.** Map colors, slope shading, water depth and the checker dither use the same rules as `FilledMapItem`. All five vanilla zoom levels (1:1 to 1:16) aggregate colors the same way vanilla does. The map uses the vanilla parchment, decoration atlas and banner label style.
+- **Held like a real map.** `M` takes the map out: your current item is lowered and put away, then the map comes up in the vanilla two-handed pose. `Shift+M` or the swap-hands key (`F`) moves it to the off hand (vanilla one-handed pose) so your main hand stays usable. Number keys while holding it with both hands also move it to the off hand.
+- **Held map slot.** A vanilla off-hand style slot next to the hotbar shows the map is in your hands; the stowed hotbar slot is dimmed.
+- **Other players see it.** With the mod on the server, other players see the map in your hands (vanilla clients too, since it is sent as normal equipment). Nothing is added to your inventory.
+- **Player heads.** Players are drawn as their skin heads with a facing pointer. Your own head has a white frame. Players outside the map are clamped to its edge.
+- **Far players (server).** With the mod on the server, heads appear even when players are far outside tracking range. Sneaking, invisible, spectating and pumpkin/skull-wearing players are hidden, like the locator bar.
+- **Navigation.** Hold right mouse to drag the map, use the wheel to zoom and press `N` to recenter and follow. Left click places a banner at the map center; left click a banner to rename, recolor or delete it. Coordinates and scale are written on the parchment border.
+- **Background drawing.** Loaded chunks are read under a per-tick time budget, nearby chunks are rescanned so block edits show up, and region files are compressed and saved on a background thread.
+- **Experimental: smart cave layers.** Underground, the map switches to a 16-block cave layer showing only cave floors you have actually been near.
+- **Experimental: shared map.** With the mod on the server, explored chunks of every player who enables it are merged on the server and streamed to everyone, rate limited in both directions.
 
 ## Controls
 
-Default keybinds:
+| Key | Action |
+| --- | --- |
+| `M` | Take out / put away the map |
+| `Shift+M`, `F` (swap hands) | Move the map between both hands and the off hand |
+| `N` | Recenter the map on yourself and follow |
+| Right mouse (hold) + move | Drag the map (both hands) |
+| Mouse wheel | Zoom (both hands) |
+| Left click | Place a banner / edit the banner under the center |
 
-- `M`: open or close the map.
-- `Shift + M`: switch between two-hand map and compact left-hand map.
-- `N`: toggle follow-player mode.
-- Mouse wheel: zoom the interactive map.
-- Hold right mouse button: move the cursor on the interactive map.
-- Left click empty map: place a marker.
-- Left click marker: cycle marker color.
-- Double click marker: edit marker name and color.
-- Shift + left click marker: delete marker.
-- Hotbar keys `1`-`9`: optionally close the map and switch slots normally.
+All keys can be rebound in Controls.
 
-Keybinds can be changed in Minecraft's Controls screen. Visual and behavior settings are available through Mod Menu.
+## Server
 
-## Mod Menu Settings
+Install the same jar on a Fabric server. It adds nothing to the game registries, so vanilla clients can still join. Settings are in `config/immersive_map_server.json`:
 
-The config screen exposes:
+- `sharePlayerPositions`, `positionUpdateIntervalTicks`, `hideSneakingPlayers`
+- `showHeldMapToOthers`
+- `enableMapSync`, `syncDownloadBytesPerTick`, `maxUploadChunksPerSecond`
 
-- terrain update interval;
-- cached map pixel limit;
-- full hand-map scale;
-- compact left-hand map scale;
-- cursor sensitivity;
-- marker name visibility;
-- compact-left default mode;
-- follow-player default mode;
-- close-on-hotbar-change behavior;
-- per-world map persistence;
-- equip animation speed;
-- default map zoom;
-- reveal radius;
-- pixel edge dither width.
+The shared map is stored in `<world>/data/immersive_map/`.
 
-## Requirements
+## Client settings
 
-- Minecraft `1.21.1`
-- Fabric Loader `0.16.5+`
-- Fabric API
-- Java `21`
-- Cloth Config
-- Mod Menu
+You can change client settings in Mod Menu (Cloth Config is bundled) or in `config/immersive_map_client.json`. Explored map data is saved per world/server in `.minecraft/immersive_map/maps/`.
 
-Cloth Config is bundled into the mod jar by the Gradle build. Mod Menu is declared as a mod dependency for the config screen integration during development.
+## Building
 
-## Build
-
-```powershell
-.\gradlew.bat build
+```
+./gradlew build
 ```
 
-The built jar is written to:
-
-```text
-build/libs/immersive-dynamic-map-1.0.0.jar
-```
-
-## Development Run
-
-```powershell
-.\gradlew.bat runClient
-```
-
-Development world, logs, and generated runtime files are written under `run/`. This directory is ignored by git.
-
-## Persistence
-
-Map data is stored client-side per world or server dimension under:
-
-```text
-run/config/immersive_map/maps/
-```
-
-In a normal Minecraft instance this maps to that instance's `config/immersive_map/maps/` directory. Saved data includes map center, cursor position, zoom, follow mode, hold mode, markers, and discovered terrain pixels.
-
-## Project Layout
-
-```text
-src/main/java/com/example/immersivemap/
-  config/MapConfig.java
-  ImmersiveMapMod.java
-  LegacyMapItem.java
-
-src/client/java/com/example/immersivemap/
-  ImmersiveMapClient.java
-  ModMenuIntegration.java
-  client/
-  mixin/client/
-
-src/main/resources/
-  fabric.mod.json
-  immersive_map.mixins.json
-  immersive_map.client.mixins.json
-  assets/immersive_map/
-```
-
-## Notes
-
-The legacy `immersive_map:handheld_map` item remains registered only to avoid breaking old saves that may still contain that item id. It is not the active map mechanic and is removed from player inventories by the mod.
-
-## License
-
-MIT
+The jar is written to `build/libs/`. Requires Java 21, Fabric Loader 0.16.5+ and Fabric API.

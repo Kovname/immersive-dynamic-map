@@ -8,5 +8,5 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @Mixin(MapRenderer.class)
 public interface MapRendererAccessor {
     @Accessor("mapDecorationsAtlasManager")
-    MapDecorationsAtlasManager immersiveMap$getMapDecorationsAtlasManager();
+    MapDecorationsAtlasManager getDecorationsAtlasManager();
 }

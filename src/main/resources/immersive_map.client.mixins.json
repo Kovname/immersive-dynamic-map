@@ -5,7 +5,6 @@
     "refmap": "client-immersive-dynamic-map-refmap.json",
     "mixins": [],
     "client": [
-        "ClientPlayerInteractionManagerMixin",
         "HeldItemFeatureRendererMixin",
         "HeldItemRendererMixin",
         "InGameHudMixin",
