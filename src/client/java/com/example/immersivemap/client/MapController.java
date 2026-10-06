@@ -12,6 +12,7 @@ import net.minecraft.client.option.Perspective;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.sound.SoundEvents;
+import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 
@@ -25,12 +26,14 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * State of the virtual map: whether it is out, which hand holds it, the equip animation, the view and the markers.
- * The real inventory is never modified; the held item is only hidden while the map is out.
+ * State of the virtual map: whether it is out, which hand holds it, the equip animation, the view, the cursor,
+ * the shown layer and the markers. The real inventory is never modified.
  */
 public final class MapController {
     public static final int MAP_SIZE = 128;
+    private static final float HALF = MAP_SIZE / 2.0F;
     private static final float ANIMATION_STEP = 0.25F;
+    private static final double PICK_RADIUS = 5.0;
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final List<Marker> MARKERS = new ArrayList<>();
 
@@ -41,12 +44,28 @@ public final class MapController {
     private static HoldState renderedHold = HoldState.BOTH_HANDS;
     private static float progress;
     private static float prevProgress;
+    private static int selectedSlot = -1;
+
     private static boolean follow = true;
     private static double centerX;
     private static double centerZ;
     private static int scale = 1;
     private static boolean viewInitialized;
-    private static int selectedSlot = -1;
+
+    /** Cursor position in map pixels relative to the map center. */
+    private static double cursorX;
+    private static double cursorZ;
+    private static boolean cursorVisible;
+    private static long lastFrameNanos;
+
+    /** {@code null} = automatic layer (surface, or the explored cave band underground). */
+    private static LayerId manualLayer;
+
+    private static Identifier deathDimension;
+    private static int deathX;
+    private static int deathZ;
+    private static boolean wasDead;
+
     private static Path statePath;
     private static boolean stateDirty;
 
@@ -138,7 +157,15 @@ public final class MapController {
             forceClose();
             return;
         }
-        if (open && (player.isDead() || player.isSpectator())) {
+        boolean dead = player.isDead();
+        if (dead && !wasDead) {
+            deathDimension = client.world.getRegistryKey().getValue();
+            deathX = player.getBlockX();
+            deathZ = player.getBlockZ();
+            stateDirty = true;
+        }
+        wasDead = dead;
+        if (open && (dead || player.isSpectator())) {
             close(client);
         }
 
@@ -227,43 +254,167 @@ public final class MapController {
         return follow && player != null ? MathHelper.lerp(tickDelta, player.prevZ, player.getZ()) : centerZ;
     }
 
-    /** Drag the map: content follows the mouse like a sheet of paper. */
-    public static void pan(double mouseDeltaX, double mouseDeltaY) {
-        double factor = ClientConfig.get().cursorSensitivity * blocksPerPixel();
-        follow = false;
-        centerX -= mouseDeltaX * factor;
-        centerZ -= mouseDeltaY * factor;
+    /** Toggles between following the player and a map pinned in place. */
+    public static void toggleFollow(MinecraftClient client) {
+        ClientPlayerEntity player = client.player;
+        if (player == null) {
+            return;
+        }
+        follow = !follow;
+        centerX = player.getX();
+        centerZ = player.getZ();
+        if (follow) {
+            cursorX = 0.0;
+            cursorZ = 0.0;
+            cursorVisible = false;
+        }
         stateDirty = true;
+        player.sendMessage(Text.translatable(follow ? "map.immersive_map.follow_on" : "map.immersive_map.follow_off"), true);
+        player.playSound(SoundEvents.UI_CARTOGRAPHY_TABLE_TAKE_RESULT, 0.4F, follow ? 1.2F : 0.9F);
+    }
+
+    public static boolean isCursorVisible() {
+        return cursorVisible && isInteractive();
+    }
+
+    public static double cursorOffsetX() {
+        return cursorX;
+    }
+
+    public static double cursorOffsetZ() {
+        return cursorZ;
+    }
+
+    public static double cursorWorldX(float tickDelta) {
+        return centerX(tickDelta) + cursorX * blocksPerPixel();
+    }
+
+    public static double cursorWorldZ(float tickDelta) {
+        return centerZ(tickDelta) + cursorZ * blocksPerPixel();
+    }
+
+    /** Mouse movement while the drag button is held moves the cursor over the map. */
+    public static void moveCursor(double mouseDeltaX, double mouseDeltaY) {
+        double sensitivity = ClientConfig.get().cursorSensitivity;
+        cursorX = MathHelper.clamp(cursorX + mouseDeltaX * sensitivity, -HALF, HALF);
+        cursorZ = MathHelper.clamp(cursorZ + mouseDeltaY * sensitivity, -HALF, HALF);
+        cursorVisible = true;
+    }
+
+    /** Called every rendered frame: a cursor resting in the edge band scrolls the map, like an RTS camera. */
+    public static void frame(MinecraftClient client) {
+        long now = System.nanoTime();
+        double seconds = lastFrameNanos == 0L ? 0.0 : Math.min((now - lastFrameNanos) / 1.0E9, 0.1);
+        lastFrameNanos = now;
+        if (!isCursorVisible() || client.currentScreen != null || !client.options.useKey.isPressed()) {
+            return;
+        }
+        ClientConfig config = ClientConfig.get();
+        double zone = config.edgePanZone;
+        double inner = HALF - zone;
+        double dx = edgeStrength(cursorX, inner, zone);
+        double dz = edgeStrength(cursorZ, inner, zone);
+        if (dx == 0.0 && dz == 0.0) {
+            return;
+        }
+        if (follow) {
+            centerX = centerX(1.0F);
+            centerZ = centerZ(1.0F);
+            follow = false;
+        }
+        double step = config.edgePanSpeed * seconds * blocksPerPixel();
+        centerX += dx * step;
+        centerZ += dz * step;
+        stateDirty = true;
+    }
+
+    private static double edgeStrength(double cursor, double inner, double zone) {
+        if (cursor > inner) {
+            return Math.min(1.0, (cursor - inner) / zone);
+        }
+        if (cursor < -inner) {
+            return -Math.min(1.0, (-inner - cursor) / zone);
+        }
+        return 0.0;
     }
 
     public static void zoom(double amount) {
         int next = MathHelper.clamp(scale - (int) Math.signum(amount), 0, 4);
-        if (next != scale) {
-            scale = next;
-            stateDirty = true;
-            ClientPlayerEntity player = MinecraftClient.getInstance().player;
-            if (player != null) {
-                player.playSound(SoundEvents.ITEM_BOOK_PAGE_TURN, 0.3F, 0.8F + scale * 0.15F);
-            }
+        if (next == scale) {
+            return;
         }
-    }
-
-    public static void recenter(MinecraftClient client) {
-        if (client.player != null) {
-            centerX = client.player.getX();
-            centerZ = client.player.getZ();
+        if (!follow && cursorVisible && ClientConfig.get().zoomAroundCursor) {
+            // Keep the block under the cursor under the cursor.
+            double worldX = centerX + cursorX * blocksPerPixel();
+            double worldZ = centerZ + cursorZ * blocksPerPixel();
+            centerX = worldX - cursorX * (1 << next);
+            centerZ = worldZ - cursorZ * (1 << next);
         }
-        follow = true;
+        scale = next;
         stateDirty = true;
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player != null) {
+            player.playSound(SoundEvents.ITEM_BOOK_PAGE_TURN, 0.3F, 0.8F + scale * 0.15F);
+        }
     }
 
-    /** The layer shown right now: an explored cave band underground (experimental) or the vanilla surface. */
+    // ---------------------------------------------------------------- layers
+
+    public static boolean isLayerManual() {
+        return manualLayer != null;
+    }
+
+    /** The shown layer: a manually chosen one, the explored cave band underground, or the surface. */
     public static LayerId currentLayer(MinecraftClient client) {
         if (client.world == null) {
             return null;
         }
-        LayerId cave = ImmersiveMapClientState.scanner().activeCaveLayer();
-        return cave != null ? cave : LayerId.surface(client.world.getRegistryKey().getValue());
+        Identifier dimension = client.world.getRegistryKey().getValue();
+        if (manualLayer != null && manualLayer.dimension().equals(dimension)) {
+            return manualLayer;
+        }
+        LayerId cave = ClientConfig.get().autoCaveLayer ? ImmersiveMapClientState.scanner().activeCaveLayer() : null;
+        return cave != null ? cave : LayerId.surface(dimension);
+    }
+
+    /** {@code direction > 0} goes up towards the surface. */
+    public static void changeLayer(MinecraftClient client, int direction) {
+        ClientPlayerEntity player = client.player;
+        if (player == null || client.world == null) {
+            return;
+        }
+        Identifier dimension = client.world.getRegistryKey().getValue();
+        LayerId current = currentLayer(client);
+        int minBand = LayerId.bandOf(client.world.getBottomY());
+        int maxBand = LayerId.bandOf(client.world.getTopY() - 1);
+        LayerId next;
+        if (current.isSurface()) {
+            next = direction > 0 ? current : LayerId.cave(dimension, MathHelper.clamp(LayerId.bandOf(player.getBlockY()), minBand, maxBand));
+        } else {
+            int band = current.band() + Integer.signum(direction);
+            next = band > maxBand ? LayerId.surface(dimension) : LayerId.cave(dimension, Math.max(band, minBand));
+        }
+        manualLayer = next;
+        player.sendMessage(layerName(next, false), true);
+        player.playSound(SoundEvents.ITEM_BOOK_PAGE_TURN, 0.3F, direction > 0 ? 1.3F : 0.8F);
+    }
+
+    public static void resetLayer(MinecraftClient client) {
+        manualLayer = null;
+        if (client.player != null) {
+            client.player.sendMessage(Text.translatable("map.immersive_map.layer.auto"), true);
+        }
+    }
+
+    public static Text layerName(LayerId layer, boolean auto) {
+        Text name;
+        if (layer.isSurface()) {
+            name = Text.translatable("map.immersive_map.layer.surface");
+        } else {
+            int bottom = layer.band() * LayerId.BAND_HEIGHT;
+            name = Text.translatable("map.immersive_map.layer.cave", bottom, bottom + LayerId.BAND_HEIGHT - 1);
+        }
+        return auto ? Text.translatable("map.immersive_map.layer.auto_suffix", name) : name;
     }
 
     // ---------------------------------------------------------------- markers
@@ -272,15 +423,28 @@ public final class MapController {
         return Collections.unmodifiableList(MARKERS);
     }
 
-    /** Left click on the open map: edit the banner under the map center or place a new one there. */
-    public static void onMapClick(MinecraftClient client) {
-        if (client.world == null || client.player == null) {
-            return;
+    public static boolean hasDeathMarker(Identifier dimension) {
+        return deathDimension != null && deathDimension.equals(dimension);
+    }
+
+    public static int deathX() {
+        return deathX;
+    }
+
+    public static int deathZ() {
+        return deathZ;
+    }
+
+    /** The banner under the cursor, if any. */
+    public static Marker hoveredMarker(MinecraftClient client, float tickDelta) {
+        if (!isCursorVisible() || client.world == null) {
+            return null;
         }
-        Identifier dimension = client.world.getRegistryKey().getValue();
-        double x = centerX(1.0F);
-        double z = centerZ(1.0F);
-        double pick = 5.0 * blocksPerPixel();
+        return nearestMarker(client.world.getRegistryKey().getValue(), cursorWorldX(tickDelta), cursorWorldZ(tickDelta));
+    }
+
+    private static Marker nearestMarker(Identifier dimension, double x, double z) {
+        double pick = PICK_RADIUS * blocksPerPixel();
         Marker nearest = null;
         double best = pick * pick;
         for (Marker marker : MARKERS) {
@@ -295,6 +459,18 @@ public final class MapController {
                 nearest = marker;
             }
         }
+        return nearest;
+    }
+
+    /** Left click on the open map: edit the banner under the cursor or place a new one there. */
+    public static void onMapClick(MinecraftClient client) {
+        if (client.world == null || client.player == null) {
+            return;
+        }
+        Identifier dimension = client.world.getRegistryKey().getValue();
+        double x = cursorVisible ? cursorWorldX(1.0F) : client.player.getX();
+        double z = cursorVisible ? cursorWorldZ(1.0F) : client.player.getZ();
+        Marker nearest = nearestMarker(dimension, x, z);
         if (nearest != null) {
             client.setScreen(new MarkerEditScreen(nearest));
             return;
@@ -358,7 +534,8 @@ public final class MapController {
 
     // ---------------------------------------------------------------- persistence
 
-    private record SavedState(double centerX, double centerZ, int scale, boolean follow, List<SavedMarker> markers) {
+    private record SavedState(double centerX, double centerZ, int scale, boolean follow, List<SavedMarker> markers,
+                              String deathDimension, int deathX, int deathZ) {
     }
 
     private record SavedMarker(String dimension, int x, int z, String name, String color) {
@@ -369,6 +546,11 @@ public final class MapController {
         MARKERS.clear();
         viewInitialized = false;
         stateDirty = false;
+        manualLayer = null;
+        deathDimension = null;
+        cursorX = 0.0;
+        cursorZ = 0.0;
+        cursorVisible = false;
         forceClose();
         if (!Files.isRegularFile(statePath)) {
             return;
@@ -391,6 +573,11 @@ public final class MapController {
                     }
                 }
             }
+            if (state.deathDimension() != null) {
+                deathDimension = Identifier.tryParse(state.deathDimension());
+                deathX = state.deathX();
+                deathZ = state.deathZ();
+            }
         } catch (IOException | JsonParseException exception) {
             ImmersiveMapMod.LOGGER.warn("Could not read {}", statePath, exception);
         }
@@ -405,7 +592,8 @@ public final class MapController {
         for (Marker marker : MARKERS) {
             saved.add(new SavedMarker(marker.dimension.toString(), marker.x, marker.z, marker.name, marker.color.id()));
         }
-        SavedState state = new SavedState(centerX, centerZ, scale, follow, saved);
+        SavedState state = new SavedState(centerX, centerZ, scale, follow, saved,
+                deathDimension == null ? null : deathDimension.toString(), deathX, deathZ);
         try {
             Files.createDirectories(statePath.getParent());
             Files.writeString(statePath, GSON.toJson(state), StandardCharsets.UTF_8);

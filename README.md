@@ -5,15 +5,16 @@ A Fabric mod for Minecraft 1.21.1 that gives you a map you can always take out, 
 ## Features
 
 - **Looks vanilla.** Map colors, slope shading, water depth and the checker dither use the same rules as `FilledMapItem`. All five vanilla zoom levels (1:1 to 1:16) aggregate colors the same way vanilla does. The map uses the vanilla parchment, decoration atlas and banner label style.
-- **Held like a real map.** `M` takes the map out: your current item is lowered and put away, then the map comes up in the vanilla two-handed pose. `Shift+M` or the swap-hands key (`F`) moves it to the off hand (vanilla one-handed pose) so your main hand stays usable. Number keys while holding it with both hands also move it to the off hand.
-- **Held map slot.** A vanilla off-hand style slot next to the hotbar shows the map is in your hands; the stowed hotbar slot is dimmed.
-- **Other players see it.** With the mod on the server, other players see the map in your hands (vanilla clients too, since it is sent as normal equipment). Nothing is added to your inventory.
-- **Player heads.** Players are drawn as their skin heads with a facing pointer. Your own head has a white frame. Players outside the map are clamped to its edge.
-- **Far players (server).** With the mod on the server, heads appear even when players are far outside tracking range. Sneaking, invisible, spectating and pumpkin/skull-wearing players are hidden, like the locator bar.
-- **Navigation.** Hold right mouse to drag the map, use the wheel to zoom and press `N` to recenter and follow. Left click places a banner at the map center; left click a banner to rename, recolor or delete it. Coordinates and scale are written on the parchment border.
+- **Your marker is the vanilla arrow.** It turns in 16 steps like vanilla (smooth rotation is optional). When you leave the shown area it becomes the vanilla white dot on the border, or the small dot when you are far away. You can switch your marker to your head in the settings.
+- **Other players are always heads**, clamped to the border when they are outside the map. With the mod on the server, far-away players show up too.
+- **Held like a real map.** `M` lowers your item and raises the map in the vanilla two-handed pose. `Shift+M`, the swap-hands key (`F`) or the number keys move it to the off hand (vanilla one-handed pose), so your main hand stays usable.
+- **Visible to others.** Players holding the map raise their arms and hold a real map sheet, with both hands or in the off hand. Other modded players see this through the server; vanilla clients see a map item in the hand. An off-hand style slot next to the hotbar shows the map is in your hands.
+- **RTS-style navigation.** Hold right mouse to move a map cursor. Resting it near an edge scrolls the map (Dota-style). `N` switches between following you and pinning the map in place (◇ next to the scale means pinned). The wheel or `+`/`-` zooms around the cursor.
+- **Banners.** Left click places a banner under the cursor, or opens the banner you are pointing at to rename, recolor or delete it.
+- **Layers.** Underground the map switches to the cave layer you are in. `Page Up`/`Page Down` or `Shift+wheel` pick a layer manually, and `Home` returns to automatic.
+- **Extras.** Optional mob icons (spawn egg sprites, filterable), a vanilla red X at your last death, a chunk grid, coordinates and scale on the parchment border, and a world-lit or always-bright map.
 - **Background drawing.** Loaded chunks are read under a per-tick time budget, nearby chunks are rescanned so block edits show up, and region files are compressed and saved on a background thread.
-- **Experimental: smart cave layers.** Underground, the map switches to a 16-block cave layer showing only cave floors you have actually been near.
-- **Experimental: shared map.** With the mod on the server, explored chunks of every player who enables it are merged on the server and streamed to everyone, rate limited in both directions.
+- **Experimental.** Smart cave layers show only cave floors you actually explored. The shared map merges explored chunks of every player through the server. A biome-under-cursor label is also available.
 
 ## Controls
 
@@ -21,10 +22,12 @@ A Fabric mod for Minecraft 1.21.1 that gives you a map you can always take out, 
 | --- | --- |
 | `M` | Take out / put away the map |
 | `Shift+M`, `F` (swap hands) | Move the map between both hands and the off hand |
-| `N` | Recenter the map on yourself and follow |
-| Right mouse (hold) + move | Drag the map (both hands) |
-| Mouse wheel | Zoom (both hands) |
-| Left click | Place a banner / edit the banner under the center |
+| `N` | Follow you / pin the map in place |
+| Right mouse (hold) + move | Move the cursor; at the edge the map scrolls |
+| Mouse wheel, `+` / `-` | Zoom |
+| `Shift` + wheel, `Page Up` / `Page Down` | Change layer |
+| `Home` | Automatic layer |
+| Left click | Place a banner / edit the banner under the cursor |
 
 All keys can be rebound in Controls.
 

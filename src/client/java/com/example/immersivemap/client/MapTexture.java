@@ -36,7 +36,15 @@ public final class MapTexture {
     private MapStore builtStore;
 
     public Identifier id() {
+        ensureTexture();
         return id;
+    }
+
+    private void ensureTexture() {
+        if (texture == null) {
+            texture = new NativeImageBackedTexture(SIZE, SIZE, true);
+            MinecraftClient.getInstance().getTextureManager().registerTexture(id, texture);
+        }
     }
 
     public void invalidate() {
@@ -58,10 +66,7 @@ public final class MapTexture {
         int blocks = 1 << scale;
         int ox = Math.floorDiv((int) Math.floor(centerX), blocks) - SIZE / 2;
         int oz = Math.floorDiv((int) Math.floor(centerZ), blocks) - SIZE / 2;
-        if (texture == null) {
-            texture = new NativeImageBackedTexture(SIZE, SIZE, true);
-            MinecraftClient.getInstance().getTextureManager().registerTexture(id, texture);
-        }
+        ensureTexture();
         originX = ox;
         originZ = oz;
         if (store == null || layer == null) {

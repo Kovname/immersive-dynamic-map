@@ -10,7 +10,8 @@
         "InGameHudMixin",
         "MapRendererAccessor",
         "MinecraftClientMixin",
-        "MouseMixin"
+        "MouseMixin",
+        "PlayerEntityModelMixin"
     ],
     "injectors": {
         "defaultRequire": 1
