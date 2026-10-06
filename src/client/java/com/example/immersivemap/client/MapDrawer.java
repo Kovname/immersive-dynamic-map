@@ -301,9 +301,9 @@ public final class MapDrawer {
 
     /** The hotspot (top-left texel) sits on the cursor position. */
     private static void drawCursor(VertexConsumerProvider vertexConsumers, MatrixStack matrices, float x, float z, int light) {
-        float texel = 0.7F;
+        float texel = 0.75F;
         quad(vertexConsumers.getBuffer(CURSOR), matrices.peek().getPositionMatrix(),
-                x - texel * 0.5F, z - texel * 0.5F, x + texel * 15.5F, z + texel * 15.5F, -0.06F, -1, light);
+                x - texel * 0.5F, z - texel * 0.5F, x + texel * 15.5F, z + texel * 15.5F, -0.08F, -1, light);
     }
 
     private static void drawMargins(MinecraftClient client, MatrixStack matrices, VertexConsumerProvider vertexConsumers,
@@ -317,8 +317,8 @@ public final class MapDrawer {
         double worldZ = cursor ? MapController.cursorWorldZ(tickDelta) : client.player.getZ();
 
         if (config.showCoordinates) {
-            Text coords = Text.translatable("map.immersive_map.coords", MathHelper.floor(worldX), MathHelper.floor(worldZ));
-            drawInk(matrices, vertexConsumers, text, coords, 0.5F, bottom, textScale, light);
+            drawCoordinates(matrices, vertexConsumers, text,
+                    Text.translatable("map.immersive_map.coords", MathHelper.floor(worldX), MathHelper.floor(worldZ)), light);
         }
         if (config.showCursorBiome) {
             BlockPos pos = BlockPos.ofFloored(worldX, client.player.getY(), worldZ);
@@ -372,6 +372,19 @@ public final class MapDrawer {
         matrices.translate(0.0F, 0.0F, -0.1F);
         textRenderer.draw(text, 0.0F, 0.0F, -1, false, matrices.peek().getPositionMatrix(), vertexConsumers,
                 TextRenderer.TextLayerType.NORMAL, Integer.MIN_VALUE, light);
+        matrices.pop();
+    }
+
+    /** Centered at the top of the map on a vanilla label plate, like banner names. */
+    private static void drawCoordinates(MatrixStack matrices, VertexConsumerProvider vertexConsumers, TextRenderer textRenderer,
+                                        Text text, int light) {
+        float scale = 0.5F;
+        float width = textRenderer.getWidth(text) * scale;
+        matrices.push();
+        matrices.translate(SIZE / 2.0F - width / 2.0F, 2.5F, -0.07F);
+        matrices.scale(scale, scale, 1.0F);
+        textRenderer.draw(text, 0.0F, 0.0F, -1, false, matrices.peek().getPositionMatrix(), vertexConsumers,
+                TextRenderer.TextLayerType.NORMAL, 0x70000000, light);
         matrices.pop();
     }
 
