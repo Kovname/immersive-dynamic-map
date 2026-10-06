@@ -2,7 +2,8 @@ package com.example.immersivemap.mixin.client;
 
 import com.example.immersivemap.client.MapController;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.GameOptions;
+import net.minecraft.client.network.ClientPlayerInteractionManager;
+import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -10,73 +11,36 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+/** With the map in both hands the mouse buttons work the map: left click places banners, right drag pans. */
 @Mixin(MinecraftClient.class)
 public abstract class MinecraftClientMixin {
     @Shadow
-    public GameOptions options;
-
-    @Inject(method = "handleInputEvents", at = @At("HEAD"), cancellable = true)
-    private void immersiveMap$handleMapInputs(CallbackInfo ci) {
-        if (MapController.shouldAutoCloseOnHotbarChange()) {
-            for (int slot = 0; slot < options.hotbarKeys.length; slot++) {
-                if (options.hotbarKeys[slot].isPressed()) {
-                    MapController.close();
-                    return;
-                }
-            }
-        }
-
-        if (MapController.isCompactLeftHandActive()) {
-            while (options.swapHandsKey.wasPressed()) {
-            }
-        }
-
-        if (!MapController.isInteractive()) {
-            return;
-        }
-
-        for (int slot = 0; slot < options.hotbarKeys.length; slot++) {
-            while (options.hotbarKeys[slot].wasPressed()) {
-            }
-        }
-
-        while (options.attackKey.wasPressed()) {
-            MapController.handlePrimaryAction((MinecraftClient) (Object) this);
-        }
-
-        while (options.useKey.wasPressed()) {
-        }
-
-        while (options.pickItemKey.wasPressed()) {
-        }
-
-        while (options.swapHandsKey.wasPressed()) {
-        }
-
-        while (options.dropKey.wasPressed()) {
-        }
-
-        ci.cancel();
-    }
+    @Nullable
+    public ClientPlayerInteractionManager interactionManager;
 
     @Inject(method = "doAttack", at = @At("HEAD"), cancellable = true)
-    private void immersiveMap$cancelAttack(CallbackInfoReturnable<Boolean> cir) {
-        if (MapController.isInteractive()) {
-            MapController.handlePrimaryAction((MinecraftClient) (Object) this);
+    private void immersiveMap$clickMap(CallbackInfoReturnable<Boolean> cir) {
+        if (MapController.blocksHands()) {
+            if (MapController.isInteractive()) {
+                MapController.onMapClick((MinecraftClient) (Object) this);
+            }
             cir.setReturnValue(false);
         }
     }
 
     @Inject(method = "doItemUse", at = @At("HEAD"), cancellable = true)
-    private void immersiveMap$cancelItemUse(CallbackInfo ci) {
-        if (MapController.isInteractive()) {
+    private void immersiveMap$blockItemUse(CallbackInfo ci) {
+        if (MapController.blocksHands()) {
             ci.cancel();
         }
     }
 
     @Inject(method = "handleBlockBreaking", at = @At("HEAD"), cancellable = true)
-    private void immersiveMap$cancelBlockBreaking(boolean breaking, CallbackInfo ci) {
-        if (MapController.isInteractive()) {
+    private void immersiveMap$blockBreaking(boolean breaking, CallbackInfo ci) {
+        if (MapController.blocksHands()) {
+            if (interactionManager != null) {
+                interactionManager.cancelBlockBreaking();
+            }
             ci.cancel();
         }
     }

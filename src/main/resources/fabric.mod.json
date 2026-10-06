@@ -3,7 +3,7 @@
   "id": "immersive_map",
   "version": "${version}",
   "name": "Immersive Dynamic Map",
-  "description": "A handheld map with real-time terrain rendering.",
+  "description": "A vanilla-style handheld map you can always take out: real map colors and shading, player heads, banners, explored cave layers and optional server-side sync.",
   "authors": [
     "Kovname"
   ],
@@ -12,7 +12,6 @@
     "sources": "https://github.com/Kovname/immersive-dynamic-map"
   },
   "license": "MIT",
-  "icon": "assets/immersivemap/icon.png",
   "environment": "*",
   "entrypoints": {
     "main": [
@@ -38,7 +37,7 @@
     "java": ">=21",
     "fabric-api": "*"
   },
-  "suggests": {
-    "another-mod": "*"
+  "recommends": {
+    "modmenu": "*"
   }
 }

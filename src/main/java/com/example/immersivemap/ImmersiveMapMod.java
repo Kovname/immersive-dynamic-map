@@ -1,26 +1,29 @@
 package com.example.immersivemap;
 
-import com.example.immersivemap.config.MapConfig;
-import me.shedaniel.autoconfig.AutoConfig;
-import me.shedaniel.autoconfig.serializer.GsonConfigSerializer;
+import com.example.immersivemap.network.ModPayloads;
+import com.example.immersivemap.server.ServerMapService;
 import net.fabricmc.api.ModInitializer;
-import net.minecraft.item.Item;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Common entrypoint. Nothing is registered in game registries, so vanilla clients can join a server
+ * running this mod and modded clients can join vanilla servers.
+ */
 public class ImmersiveMapMod implements ModInitializer {
     public static final String MOD_ID = "immersive_map";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+    /** Bumped whenever a payload layout changes; peers with another version are ignored. */
+    public static final int PROTOCOL_VERSION = 1;
 
-    private static final Item LEGACY_HANDHELD_MAP = new LegacyMapItem(new Item.Settings().maxCount(1));
-    
+    public static Identifier id(String path) {
+        return Identifier.of(MOD_ID, path);
+    }
+
     @Override
     public void onInitialize() {
-        LOGGER.info("Initializing Immersive Dynamic Map");
-        AutoConfig.register(MapConfig.class, GsonConfigSerializer::new);
-        Registry.register(Registries.ITEM, Identifier.of(MOD_ID, "handheld_map"), LEGACY_HANDHELD_MAP);
+        ModPayloads.register();
+        ServerMapService.init();
     }
 }

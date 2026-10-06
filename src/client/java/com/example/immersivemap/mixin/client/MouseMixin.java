@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+/** Holding right click drags the two-handed map instead of turning the camera; the wheel zooms. */
 @Mixin(Mouse.class)
 public abstract class MouseMixin {
     @Shadow
@@ -23,24 +24,22 @@ public abstract class MouseMixin {
     private double cursorDeltaY;
 
     @Inject(method = "updateMouse", at = @At("HEAD"), cancellable = true)
-    private void immersiveMap$moveMapCursor(double timeDelta, CallbackInfo ci) {
+    private void immersiveMap$dragMap(double timeDelta, CallbackInfo ci) {
         if (!MapController.isInteractive() || client.currentScreen != null || !client.options.useKey.isPressed()) {
             return;
         }
-
-        MapController.moveCursor(cursorDeltaX, cursorDeltaY);
+        MapController.pan(cursorDeltaX, cursorDeltaY);
         cursorDeltaX = 0.0D;
         cursorDeltaY = 0.0D;
         ci.cancel();
     }
 
     @Inject(method = "onMouseScroll", at = @At("HEAD"), cancellable = true)
-    private void immersiveMap$changeZoom(long window, double horizontal, double vertical, CallbackInfo ci) {
-        if (!MapController.isInteractive() || client.currentScreen != null || window != client.getWindow().getHandle()) {
+    private void immersiveMap$zoom(long window, double horizontal, double vertical, CallbackInfo ci) {
+        if (!MapController.isInteractive() || client.currentScreen != null || window != client.getWindow().getHandle() || vertical == 0.0D) {
             return;
         }
-
-        MapController.changeZoom(vertical);
+        MapController.zoom(vertical);
         ci.cancel();
     }
 }
