@@ -16,9 +16,8 @@ import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.util.DefaultSkinHelper;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.mob.Monster;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.SpawnEggItem;
 import net.minecraft.item.map.MapDecoration;
 import net.minecraft.item.map.MapDecorationType;
@@ -30,6 +29,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RotationAxis;
+import net.minecraft.world.LightType;
 import net.minecraft.world.biome.Biome;
 import org.joml.Matrix4f;
 
@@ -53,7 +53,19 @@ public final class MapDrawer {
     private static final Identifier EGG_OVERLAY = Identifier.ofVanilla("item/spawn_egg_overlay");
     private static final float SIZE = MapController.MAP_SIZE;
     private static final float HEAD_SIZE = 7.0F;
-    private static final int INK = 0xFF3F2E1C;
+    private static final float MOB_SIZE = 5.5F;
+    private static final float BABY_MOB_SIZE = 4.0F;
+    private static final float MOB_LAYER = -0.015F;
+    private static final int MOB_OUTLINE = 0x2B2118;
+    private static final int HOSTILE_OUTLINE = 0x5E1A12;
+    /** Faded sepia, darker than the parchment border but softer than black ink. */
+    private static final int INK = 0xFF5C4733;
+    private static final float TEXT_SCALE = 0.45F;
+    /** Baselines inside the opaque part of the parchment border, above and below the map. */
+    private static final float TOP_TEXT = -4.45F;
+    private static final float BOTTOM_TEXT = 128.45F;
+    /** The left thumb of the two-handed pose covers the first few pixels of the bottom border. */
+    private static final float BOTTOM_LEFT_TEXT = 8.0F;
     /** Vanilla switches to the small off-limits dot this many blocks away from the map. */
     private static final double OFF_MAP_RANGE = 320.0;
 
@@ -108,7 +120,7 @@ public final class MapDrawer {
         Identifier dimension = client.world.getRegistryKey().getValue();
 
         if (config.showMobs) {
-            drawMobs(client, matrices, vertexConsumers, view, config, tickDelta, depth, light);
+            drawMobs(client, matrices, vertexConsumers, view, layer, config, tickDelta, light);
         }
 
         if (config.showDeathMarker && MapController.hasDeathMarker(dimension)) {
@@ -116,6 +128,9 @@ public final class MapDrawer {
             float z = view.z(MapController.deathZ() + 0.5);
             if (view.inside(x, z)) {
                 drawDecoration(matrices, vertexConsumers, atlas, MapDecorationTypes.RED_X, x, z, 0.0F, depth, light);
+                if (MapController.isDeathHovered(client, tickDelta)) {
+                    drawName(matrices, vertexConsumers, client.textRenderer, Text.translatable("map.immersive_map.death"), x, z, light);
+                }
             }
         }
 
@@ -159,9 +174,10 @@ public final class MapDrawer {
 
         drawSelf(client, matrices, vertexConsumers, atlas, view, config, tickDelta, depth, light);
 
-        if (MapController.isCursorVisible()) {
+        float cursorAlpha = MapController.cursorAlpha();
+        if (cursorAlpha > 0.0F) {
             drawCursor(vertexConsumers, matrices, view.x(MapController.cursorWorldX(tickDelta)),
-                    view.z(MapController.cursorWorldZ(tickDelta)), light);
+                    view.z(MapController.cursorWorldZ(tickDelta)), cursorAlpha, light);
         }
 
         drawMargins(client, matrices, vertexConsumers, layer, scale, config, tickDelta, light);
@@ -246,12 +262,20 @@ public final class MapDrawer {
 
     // ---------------------------------------------------------------- mobs
 
+    /**
+     * Loaded mobs as heads of their own models (spawn eggs for the odd mob without one), nearest on top. Only mobs
+     * on the shown level are drawn: none from caves on the surface map, and on cave maps only those near your height.
+     */
     private static void drawMobs(MinecraftClient client, MatrixStack matrices, VertexConsumerProvider vertexConsumers,
-                                 View view, ClientConfig config, float tickDelta, int[] depth, int light) {
-        List<LivingEntity> mobs = new ArrayList<>();
+                                 View view, LayerId layer, ClientConfig config, float tickDelta, int light) {
+        boolean cave = layer != null && !layer.isSurface();
+        double referenceY = cave && MapController.isLayerManual()
+                ? layer.band() * LayerId.BAND_HEIGHT + LayerId.BAND_HEIGHT / 2.0
+                : client.player.getY();
+        boolean skyLight = client.world.getDimension().hasSkyLight();
+        List<MobEntity> mobs = new ArrayList<>();
         for (Entity entity : client.world.getEntities()) {
-            if (!(entity instanceof LivingEntity living) || entity instanceof PlayerEntity || !living.isAlive()
-                    || entity.isInvisibleTo(client.player)) {
+            if (!(entity instanceof MobEntity mob) || !mob.isAlive() || mob.isInvisibleTo(client.player)) {
                 continue;
             }
             boolean hostile = entity instanceof Monster;
@@ -259,27 +283,46 @@ public final class MapDrawer {
                     || config.mobFilter == ClientConfig.MobFilter.PASSIVE && hostile) {
                 continue;
             }
-            if (view.inside(view.x(entity.getX()), view.z(entity.getZ())) && SpawnEggItem.forEntity(entity.getType()) != null) {
-                mobs.add(living);
+            if (!view.inside(view.x(entity.getX()), view.z(entity.getZ()))) {
+                continue;
             }
+            double dy = Math.abs(entity.getY() - referenceY);
+            if (cave ? dy > 20.0 : dy > 8.0 && skyLight
+                    && client.world.getLightLevel(LightType.SKY, BlockPos.ofFloored(entity.getEyePos())) == 0) {
+                continue;
+            }
+            mobs.add(mob);
         }
         mobs.sort(Comparator.comparingDouble(entity -> entity.squaredDistanceTo(client.player)));
+        int count = Math.min(mobs.size(), config.maxMobIcons);
+        // Farthest first: everything shares one depth, so later (nearer) mobs end up on top.
+        for (int i = count - 1; i >= 0; i--) {
+            MobEntity mob = mobs.get(i);
+            float x = view.x(MathHelper.lerp(tickDelta, mob.prevX, mob.getX()));
+            float z = view.z(MathHelper.lerp(tickDelta, mob.prevZ, mob.getZ()));
+            double dy = Math.abs(mob.getY() - referenceY);
+            int alpha = cave && dy > 8.0 ? (int) MathHelper.clampedLerp(255.0, 110.0, (dy - 8.0) / 12.0) : 255;
+            float size = mob.isBaby() ? BABY_MOB_SIZE : MOB_SIZE;
+            int outline = mob instanceof Monster ? HOSTILE_OUTLINE : MOB_OUTLINE;
+            if (!MobHeads.draw(matrices, vertexConsumers, mob, x, z, size, MOB_LAYER, outline, alpha, light)) {
+                drawEgg(client, matrices, vertexConsumers, mob, x, z, alpha, light);
+            }
+        }
+    }
+
+    private static void drawEgg(MinecraftClient client, MatrixStack matrices, VertexConsumerProvider vertexConsumers,
+                                MobEntity mob, float x, float z, int alpha, int light) {
+        SpawnEggItem egg = SpawnEggItem.forEntity(mob.getType());
+        if (egg == null) {
+            return;
+        }
         var sprites = client.getSpriteAtlas(PlayerScreenHandler.BLOCK_ATLAS_TEXTURE);
         Sprite base = sprites.apply(EGG);
         Sprite overlay = sprites.apply(EGG_OVERLAY);
-        VertexConsumer consumer = vertexConsumers.getBuffer(RenderLayer.getText(base.getAtlasId()));
+        VertexConsumer consumer = vertexConsumers.getBuffer(MobHeads.iconLayer(base.getAtlasId()));
         Matrix4f matrix = matrices.peek().getPositionMatrix();
-        int count = Math.min(mobs.size(), config.maxMobIcons);
-        // Farthest first so the nearest mobs end up on top.
-        for (int i = count - 1; i >= 0; i--) {
-            LivingEntity mob = mobs.get(i);
-            SpawnEggItem egg = SpawnEggItem.forEntity(mob.getType());
-            float x = view.x(MathHelper.lerp(tickDelta, mob.prevX, mob.getX()));
-            float z = view.z(MathHelper.lerp(tickDelta, mob.prevZ, mob.getZ()));
-            float layer = -0.015F - depth[0]++ * 0.0002F;
-            spriteQuad(consumer, matrix, base, x - 2.5F, z - 2.5F, x + 2.5F, z + 2.5F, layer, 0xFF000000 | egg.getColor(0) & 0xFFFFFF, light);
-            spriteQuad(consumer, matrix, overlay, x - 2.5F, z - 2.5F, x + 2.5F, z + 2.5F, layer - 0.0001F, 0xFF000000 | egg.getColor(1) & 0xFFFFFF, light);
-        }
+        spriteQuad(consumer, matrix, base, x - 2.5F, z - 2.5F, x + 2.5F, z + 2.5F, MOB_LAYER, alpha << 24 | egg.getColor(0) & 0xFFFFFF, light);
+        spriteQuad(consumer, matrix, overlay, x - 2.5F, z - 2.5F, x + 2.5F, z + 2.5F, MOB_LAYER, alpha << 24 | egg.getColor(1) & 0xFFFFFF, light);
     }
 
     // ---------------------------------------------------------------- overlays
@@ -300,25 +343,28 @@ public final class MapDrawer {
     }
 
     /** The hotspot (top-left texel) sits on the cursor position. */
-    private static void drawCursor(VertexConsumerProvider vertexConsumers, MatrixStack matrices, float x, float z, int light) {
+    private static void drawCursor(VertexConsumerProvider vertexConsumers, MatrixStack matrices, float x, float z, float alpha, int light) {
         float texel = 0.75F;
+        int color = MathHelper.clamp((int) (alpha * 255.0F), 0, 255) << 24 | 0xFFFFFF;
         quad(vertexConsumers.getBuffer(CURSOR), matrices.peek().getPositionMatrix(),
-                x - texel * 0.5F, z - texel * 0.5F, x + texel * 15.5F, z + texel * 15.5F, -0.08F, -1, light);
+                x - texel * 0.5F, z - texel * 0.5F, x + texel * 15.5F, z + texel * 15.5F, -0.08F, color, light);
     }
 
+    /**
+     * Ink on the parchment border: layer and scale above the map; coordinates (yours, or the cursor's while it is
+     * out) bottom left and the biome bottom right.
+     */
     private static void drawMargins(MinecraftClient client, MatrixStack matrices, VertexConsumerProvider vertexConsumers,
                                     LayerId layer, int scale, ClientConfig config, float tickDelta, int light) {
         TextRenderer text = client.textRenderer;
-        float textScale = 0.5F;
-        float bottom = 129.4F;
-        float top = -5.6F;
         boolean cursor = MapController.isCursorVisible();
-        double worldX = cursor ? MapController.cursorWorldX(tickDelta) : client.player.getX();
-        double worldZ = cursor ? MapController.cursorWorldZ(tickDelta) : client.player.getZ();
+        double worldX = cursor ? MapController.cursorWorldX(tickDelta) : MathHelper.lerp(tickDelta, client.player.prevX, client.player.getX());
+        double worldZ = cursor ? MapController.cursorWorldZ(tickDelta) : MathHelper.lerp(tickDelta, client.player.prevZ, client.player.getZ());
 
         if (config.showCoordinates) {
-            drawCoordinates(matrices, vertexConsumers, text,
-                    Text.translatable("map.immersive_map.coords", MathHelper.floor(worldX), MathHelper.floor(worldZ)), light);
+            drawInk(matrices, vertexConsumers, text,
+                    Text.translatable("map.immersive_map.coords", MathHelper.floor(worldX), MathHelper.floor(worldZ)),
+                    BOTTOM_LEFT_TEXT, BOTTOM_TEXT, TEXT_SCALE, light);
         }
         if (config.showCursorBiome) {
             BlockPos pos = BlockPos.ofFloored(worldX, client.player.getY(), worldZ);
@@ -327,15 +373,16 @@ public final class MapDrawer {
                 Text name = biome.getKey()
                         .map(key -> (Text) Text.translatable(key.getValue().toTranslationKey("biome")))
                         .orElse(Text.empty());
-                drawInk(matrices, vertexConsumers, text, name, 127.5F - text.getWidth(name) * textScale, bottom, textScale, light);
+                drawInk(matrices, vertexConsumers, text, name, 127.5F - text.getWidth(name) * TEXT_SCALE, BOTTOM_TEXT, TEXT_SCALE, light);
             }
         }
         if (layer != null && (!layer.isSurface() || MapController.isLayerManual())) {
-            drawInk(matrices, vertexConsumers, text, MapController.layerName(layer, !MapController.isLayerManual()), 0.5F, top, textScale, light);
+            drawInk(matrices, vertexConsumers, text, MapController.layerName(client, layer, !MapController.isLayerManual()),
+                    0.5F, TOP_TEXT, TEXT_SCALE, light);
         }
         if (config.showScale) {
-            Text label = Text.literal((MapController.isFollowing() ? "" : "\u25C7 ") + "1:" + (1 << scale));
-            drawInk(matrices, vertexConsumers, text, label, 127.5F - text.getWidth(label) * textScale, top, textScale, light);
+            Text label = Text.literal("1:" + (1 << scale));
+            drawInk(matrices, vertexConsumers, text, label, 127.5F - text.getWidth(label) * TEXT_SCALE, TOP_TEXT, TEXT_SCALE, light);
         }
     }
 
@@ -372,19 +419,6 @@ public final class MapDrawer {
         matrices.translate(0.0F, 0.0F, -0.1F);
         textRenderer.draw(text, 0.0F, 0.0F, -1, false, matrices.peek().getPositionMatrix(), vertexConsumers,
                 TextRenderer.TextLayerType.NORMAL, Integer.MIN_VALUE, light);
-        matrices.pop();
-    }
-
-    /** Centered at the top of the map on a vanilla label plate, like banner names. */
-    private static void drawCoordinates(MatrixStack matrices, VertexConsumerProvider vertexConsumers, TextRenderer textRenderer,
-                                        Text text, int light) {
-        float scale = 0.5F;
-        float width = textRenderer.getWidth(text) * scale;
-        matrices.push();
-        matrices.translate(SIZE / 2.0F - width / 2.0F, 2.5F, -0.07F);
-        matrices.scale(scale, scale, 1.0F);
-        textRenderer.draw(text, 0.0F, 0.0F, -1, false, matrices.peek().getPositionMatrix(), vertexConsumers,
-                TextRenderer.TextLayerType.NORMAL, 0x70000000, light);
         matrices.pop();
     }
 

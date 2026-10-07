@@ -5,13 +5,16 @@
     "refmap": "client-immersive-dynamic-map-refmap.json",
     "mixins": [],
     "client": [
+        "AnimalModelAccessor",
         "HeldItemFeatureRendererMixin",
         "HeldItemRendererMixin",
         "InGameHudMixin",
+        "LlamaEntityModelAccessor",
         "MapRendererAccessor",
         "MinecraftClientMixin",
         "MouseMixin",
-        "PlayerEntityModelMixin"
+        "PlayerEntityModelMixin",
+        "RabbitEntityModelAccessor"
     ],
     "injectors": {
         "defaultRequire": 1

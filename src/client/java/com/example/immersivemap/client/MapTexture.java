@@ -15,13 +15,15 @@ import java.util.Objects;
  * 128x128 texture with exactly the pixels a vanilla filled map would show for this view: the most common map color
  * of each cell, shaded by the height difference to the cell north of it or by water depth, with the vanilla checker
  * dither. Unexplored pixels stay transparent so the parchment shows through. Rebuilt only when the view or the
- * underlying chunks change.
+ * underlying chunks change. Cave walls use the darkest vanilla shade without dither, explored void is a faint tint.
  */
 public final class MapTexture {
     private static final int SIZE = MapController.MAP_SIZE;
     private static final MapColor.Brightness[] BRIGHTNESS = {
             MapColor.Brightness.LOW, MapColor.Brightness.NORMAL, MapColor.Brightness.HIGH
     };
+    /** ABGR: a light ink wash over the parchment. */
+    private static final int VOID_ABGR = 0x2A000000;
 
     private final Identifier id = ImmersiveMapMod.id("dynamic_map");
     private final float[] previousRow = new float[SIZE];
@@ -120,15 +122,20 @@ public final class MapTexture {
                     colors = cached == null ? null : cached.colors(scale);
                 }
                 int cell = localZ * cellsPerChunk + (cellX & mask);
-                int colorId = colors == null ? 0 : colors[cell] & 0xFF;
-                boolean explored = colorId != 0;
+                int raw = colors == null ? 0 : colors[cell] & 0x7F;
+                boolean wall = ChunkSurface.isWall(raw);
+                boolean explored = raw != 0 && raw != ChunkSurface.VOID_COLOR;
                 float height = explored ? cached.height(scale, cell) : 0.0F;
 
                 if (pz >= 0) {
                     int abgr = 0;
-                    if (explored) {
+                    if (raw == ChunkSurface.VOID_COLOR) {
+                        abgr = VOID_ABGR;
+                    } else if (wall) {
+                        abgr = wallColor(MapColor.get(raw & ChunkSurface.COLOR_MASK));
+                    } else if (explored) {
                         int checker = (cellX + cellZ) & 1;
-                        MapColor color = MapColor.get(colorId);
+                        MapColor color = MapColor.get(raw);
                         int brightness;
                         if (color == MapColor.WATER_BLUE) {
                             double f = cached.depth(scale, cell) * 0.1 + checker * 0.2;
@@ -146,5 +153,14 @@ public final class MapTexture {
                 previousExplored[px] = explored;
             }
         }
+    }
+
+    /** The darkest vanilla shade, darkened further so walls outline caves clearly next to shaded floors. */
+    private static int wallColor(MapColor color) {
+        int abgr = color.getRenderColor(MapColor.Brightness.LOWEST);
+        int r = (abgr & 0xFF) * 3 / 5;
+        int g = (abgr >> 8 & 0xFF) * 3 / 5;
+        int b = (abgr >> 16 & 0xFF) * 3 / 5;
+        return 0xFF000000 | b << 16 | g << 8 | r;
     }
 }
