@@ -16,35 +16,31 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.Heightmap;
-import net.minecraft.world.LightType;
 import net.minecraft.world.chunk.WorldChunk;
 
 /**
  * Reads loaded chunks into {@link ChunkSurface}s with the same column rules as {@code FilledMapItem#updateColors}
  * (heightmap, transparent blocks skipped, water depth, visible fluids). Runs on the client thread under a time
  * budget: new chunks first, then a slow rescan ring around the player so block edits show up.
+ * Caves and dimensions with a ceiling are mapped by {@link CaveMapper} from what the player sees.
  */
 public final class MapScanner {
     private static final long RESCAN_NEAR_MS = 2_000L;
     private static final long RESCAN_FAR_MS = 20_000L;
-    private static final int UNDERGROUND_SWITCH_TICKS = 10;
 
     private final LongLinkedOpenHashSet pending = new LongLinkedOpenHashSet();
     private final Long2LongOpenHashMap lastScan = new Long2LongOpenHashMap();
     private final BlockPos.Mutable pos = new BlockPos.Mutable();
     private final BlockPos.Mutable below = new BlockPos.Mutable();
+    private final CaveMapper caves = new CaveMapper();
     private ClientWorld world;
     private int ringIndex;
-    private int caveTicks;
-    private int undergroundTicks;
-    private LayerId activeCaveLayer;
 
     public void reset() {
         pending.clear();
         lastScan.clear();
         world = null;
-        activeCaveLayer = null;
-        undergroundTicks = 0;
+        caves.reset();
     }
 
     public void onChunkLoad(int chunkX, int chunkZ) {
@@ -53,7 +49,15 @@ public final class MapScanner {
 
     /** The cave layer the player is exploring right now, or {@code null} on the surface. */
     public LayerId activeCaveLayer() {
-        return activeCaveLayer;
+        return caves.activeLayer();
+    }
+
+    /**
+     * The vanilla map of a dimension with a ceiling is only a dirt/stone noise; with cave maps on, such dimensions
+     * are mapped level by level instead and have no surface layer.
+     */
+    public static boolean usesLevels(ClientWorld world) {
+        return world.getDimension().hasCeiling() && ClientConfig.get().smartCaveLayers;
     }
 
     public void tick(MinecraftClient client, MapStore store) {
@@ -69,8 +73,15 @@ public final class MapScanner {
 
         Identifier dimension = world.getRegistryKey().getValue();
         LayerId surface = LayerId.surface(dimension);
-        long deadline = System.nanoTime() + (long) (ClientConfig.get().scanBudgetMs * 1_000_000L);
+        long budget = (long) (ClientConfig.get().scanBudgetMs * 1_000_000L);
+        long deadline = System.nanoTime() + budget;
         long now = System.currentTimeMillis();
+
+        if (usesLevels(world)) {
+            pending.clear();
+            caves.tick(client, store, deadline);
+            return;
+        }
 
         while (!pending.isEmpty() && System.nanoTime() < deadline) {
             long chunk = pending.removeFirstLong();
@@ -96,7 +107,7 @@ public final class MapScanner {
             }
         }
 
-        updateCaves(client, store, dimension);
+        caves.tick(client, store, System.nanoTime() + budget);
     }
 
     private void scanSurface(MapStore store, LayerId layer, int chunkX, int chunkZ, long now) {
@@ -129,8 +140,9 @@ public final class MapScanner {
                 } else {
                     height = chunk.sampleHeightmap(Heightmap.Type.WORLD_SURFACE, x, z) + 1;
                     if (height <= bottom + 1) {
-                        state = Blocks.BEDROCK.getDefaultState();
-                        pos.set(worldX, bottom, worldZ);
+                        // An empty column (the End void): vanilla paints bedrock here, a light wash reads better.
+                        changed |= surface.set(ChunkSurface.index(x, z), ChunkSurface.VOID_COLOR, bottom, 0);
+                        continue;
                     } else {
                         do {
                             pos.set(worldX, --height, worldZ);
@@ -168,92 +180,5 @@ public final class MapScanner {
     private BlockState visibleFluid(BlockState state, BlockPos at) {
         FluidState fluid = state.getFluidState();
         return !fluid.isEmpty() && !state.isSideSolidFullSquare(world, at, Direction.UP) ? fluid.getBlockState() : state;
-    }
-
-    // ---------------------------------------------------------------- smart cave layers
-
-    private void updateCaves(MinecraftClient client, MapStore store, Identifier dimension) {
-        ClientPlayerEntity player = client.player;
-        if (!ClientConfig.get().smartCaveLayers || player == null) {
-            activeCaveLayer = null;
-            return;
-        }
-        BlockPos eye = BlockPos.ofFloored(player.getEyePos());
-        boolean underground = world.getDimension().hasCeiling()
-                || world.getLightLevel(LightType.SKY, eye) == 0
-                && eye.getY() < world.getTopY(Heightmap.Type.WORLD_SURFACE, eye.getX(), eye.getZ()) - 3;
-        undergroundTicks = underground
-                ? Math.min(undergroundTicks + 1, UNDERGROUND_SWITCH_TICKS)
-                : Math.max(undergroundTicks - 1, 0);
-        if (undergroundTicks >= UNDERGROUND_SWITCH_TICKS) {
-            activeCaveLayer = LayerId.cave(dimension, LayerId.bandOf(player.getBlockY()));
-        } else if (undergroundTicks == 0) {
-            activeCaveLayer = null;
-        }
-        if (activeCaveLayer == null || ++caveTicks % 5 != 0) {
-            return;
-        }
-        revealCave(store, activeCaveLayer, player.getBlockPos());
-    }
-
-    /** Records cave floors inside the band, only in a small radius around the player: what was really seen. */
-    private void revealCave(MapStore store, LayerId layer, BlockPos center) {
-        int radius = ClientConfig.get().caveRevealRadius;
-        int bandBottom = layer.band() * LayerId.BAND_HEIGHT;
-        int bandTop = bandBottom + LayerId.BAND_HEIGHT - 1;
-        int bottom = world.getBottomY();
-        int radiusSq = radius * radius;
-        WorldChunk chunk = null;
-        ChunkSurface surface = null;
-        int chunkX = Integer.MAX_VALUE;
-        int chunkZ = Integer.MAX_VALUE;
-        boolean changed = false;
-
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                if (dx * dx + dz * dz > radiusSq) {
-                    continue;
-                }
-                int x = center.getX() + dx;
-                int z = center.getZ() + dz;
-                if (x >> 4 != chunkX || z >> 4 != chunkZ) {
-                    if (changed) {
-                        store.markChanged(layer, chunkX, chunkZ, true);
-                        changed = false;
-                    }
-                    chunkX = x >> 4;
-                    chunkZ = z >> 4;
-                    chunk = world.getChunkManager().getWorldChunk(chunkX, chunkZ, false);
-                    surface = chunk == null ? null : store.getOrCreate(layer, chunkX, chunkZ);
-                }
-                if (chunk == null) {
-                    continue;
-                }
-                boolean open = false;
-                for (int y = Math.min(bandTop + 1, center.getY() + 4); y >= Math.max(bandBottom, bottom + 1); y--) {
-                    pos.set(x, y, z);
-                    BlockState state = chunk.getBlockState(pos);
-                    if (state.getMapColor(world, pos) == MapColor.CLEAR) {
-                        open = true;
-                        continue;
-                    }
-                    if (open) {
-                        int depth = 0;
-                        if (!state.getFluidState().isEmpty()) {
-                            depth = waterDepth(chunk, x, y, z, bottom);
-                            state = visibleFluid(state, pos);
-                        }
-                        int color = state.getMapColor(world, pos).id;
-                        if (color != 0) {
-                            changed |= surface.set(ChunkSurface.index(x & 15, z & 15), color, y, depth);
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-        if (changed) {
-            store.markChanged(layer, chunkX, chunkZ, true);
-        }
     }
 }

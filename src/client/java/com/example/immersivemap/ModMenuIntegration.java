@@ -2,6 +2,7 @@ package com.example.immersivemap;
 
 import com.example.immersivemap.client.ClientConfig;
 import com.example.immersivemap.client.ClientNetworking;
+import com.example.immersivemap.client.CaveMapper;
 import com.terraformersmc.modmenu.api.ConfigScreenFactory;
 import com.terraformersmc.modmenu.api.ModMenuApi;
 import me.shedaniel.clothconfig2.api.AbstractConfigListEntry;
@@ -46,6 +47,9 @@ public class ModMenuIntegration implements ModMenuApi {
             view.addEntry(e.startFloatField(option("cursorSensitivity"), c.cursorSensitivity)
                     .setMin(0.05F).setMax(2.0F).setDefaultValue(d.cursorSensitivity)
                     .setSaveConsumer(v -> c.cursorSensitivity = v).build());
+            view.addEntry(e.startFloatField(option("cursorHideSeconds"), c.cursorHideSeconds)
+                    .setMin(1.0F).setMax(15.0F).setDefaultValue(d.cursorHideSeconds).setTooltip(tooltip("cursorHideSeconds"))
+                    .setSaveConsumer(v -> c.cursorHideSeconds = v).build());
             view.addEntry(e.startIntSlider(option("edgePanZone"), c.edgePanZone, 2, 40)
                     .setDefaultValue(d.edgePanZone).setTooltip(tooltip("edgePanZone"))
                     .setSaveConsumer(v -> c.edgePanZone = v).build());
@@ -72,16 +76,19 @@ public class ModMenuIntegration implements ModMenuApi {
             bool(contents, e, "showCoordinates", c.showCoordinates, d.showCoordinates, v -> c.showCoordinates = v);
             bool(contents, e, "showScale", c.showScale, d.showScale, v -> c.showScale = v);
 
+            ConfigCategory caves = builder.getOrCreateCategory(Text.translatable("config.immersive_map.caves"));
+            bool(caves, e, "smartCaveLayers", c.smartCaveLayers, d.smartCaveLayers, v -> c.smartCaveLayers = v);
+            bool(caves, e, "autoCaveLayer", c.autoCaveLayer, d.autoCaveLayer, v -> c.autoCaveLayer = v);
+            caves.addEntry(e.startIntSlider(option("caveViewDistance"), c.caveViewDistance, CaveMapper.MIN_DISTANCE, CaveMapper.MAX_DISTANCE)
+                    .setDefaultValue(d.caveViewDistance).setTooltip(tooltip("caveViewDistance"))
+                    .setSaveConsumer(v -> c.caveViewDistance = v).build());
+
             ConfigCategory performance = builder.getOrCreateCategory(Text.translatable("config.immersive_map.performance"));
             performance.addEntry(e.startFloatField(option("scanBudgetMs"), c.scanBudgetMs)
                     .setMin(0.25F).setMax(8.0F).setDefaultValue(d.scanBudgetMs).setTooltip(tooltip("scanBudgetMs"))
                     .setSaveConsumer(v -> c.scanBudgetMs = v).build());
 
             ConfigCategory experimental = builder.getOrCreateCategory(Text.translatable("config.immersive_map.experimental"));
-            bool(experimental, e, "smartCaveLayers", c.smartCaveLayers, d.smartCaveLayers, v -> c.smartCaveLayers = v);
-            bool(experimental, e, "autoCaveLayer", c.autoCaveLayer, d.autoCaveLayer, v -> c.autoCaveLayer = v);
-            experimental.addEntry(e.startIntSlider(option("caveRevealRadius"), c.caveRevealRadius, 4, 32)
-                    .setDefaultValue(d.caveRevealRadius).setSaveConsumer(v -> c.caveRevealRadius = v).build());
             bool(experimental, e, "mapSync", c.mapSync, d.mapSync, v -> c.mapSync = v);
             bool(experimental, e, "showCursorBiome", c.showCursorBiome, d.showCursorBiome, v -> c.showCursorBiome = v);
             return builder.build();

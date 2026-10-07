@@ -38,6 +38,8 @@ public final class ClientConfig {
 
     // Cursor / navigation
     public float cursorSensitivity = 0.3F;
+    /** Idle seconds before the map cursor fades out. */
+    public float cursorHideSeconds = 3.0F;
     /** Width of the edge band in map pixels where the cursor scrolls the map. */
     public int edgePanZone = 12;
     /** Map pixels per second at the very edge. */
@@ -60,10 +62,13 @@ public final class ClientConfig {
     /** Milliseconds per client tick spent reading chunks into the map. */
     public float scanBudgetMs = 1.5F;
 
-    // Experimental
+    // Caves
     public boolean smartCaveLayers = true;
     public boolean autoCaveLayer = true;
-    public int caveRevealRadius = 14;
+    /** How far (in blocks) the cave map looks for floors and walls in sight. */
+    public int caveViewDistance = 64;
+
+    // Experimental
     public boolean mapSync = false;
     public boolean showCursorBiome = false;
 
@@ -93,11 +98,12 @@ public final class ClientConfig {
     public void sanitize() {
         defaultScale = MathHelper.clamp(defaultScale, 0, 4);
         cursorSensitivity = MathHelper.clamp(cursorSensitivity, 0.05F, 2.0F);
+        cursorHideSeconds = MathHelper.clamp(cursorHideSeconds, 1.0F, 15.0F);
         edgePanZone = MathHelper.clamp(edgePanZone, 2, 40);
         edgePanSpeed = MathHelper.clamp(edgePanSpeed, 10, 400);
         maxMobIcons = MathHelper.clamp(maxMobIcons, 1, 256);
         scanBudgetMs = MathHelper.clamp(scanBudgetMs, 0.25F, 8.0F);
-        caveRevealRadius = MathHelper.clamp(caveRevealRadius, 4, 32);
+        caveViewDistance = MathHelper.clamp(caveViewDistance, CaveMapper.MIN_DISTANCE, CaveMapper.MAX_DISTANCE);
         if (playerMarker == null) {
             playerMarker = PlayerMarker.ARROW;
         }
