@@ -1,5 +1,6 @@
 package com.example.immersivemap.client;
 
+import com.example.immersivemap.ImmersiveMapMod;
 import com.example.immersivemap.map.HoldState;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
@@ -12,17 +13,22 @@ import net.minecraft.util.math.MathHelper;
 /**
  * A vanilla off-hand style slot next to the hotbar showing that the map is in hand. In the off hand it covers the
  * real off-hand slot; with both hands it sits on the main-hand side and the selected hotbar slot is dimmed.
- * Pinning or unpinning the map briefly shows the cartography table lock on the outer side of that slot.
+ * Pinning or unpinning the map briefly shows a padlock on the outer side of that slot.
  */
 public final class MapHud {
     private static final Identifier SLOT_LEFT = Identifier.ofVanilla("hud/hotbar_offhand_left");
     private static final Identifier SLOT_RIGHT = Identifier.ofVanilla("hud/hotbar_offhand_right");
-    private static final Identifier LOCK = Identifier.ofVanilla("container/cartography_table/locked");
-    private static final int LOCK_WIDTH = 10;
-    private static final int LOCK_HEIGHT = 14;
-    /** The top six rows of the lock sprite are the shackle; it is lifted this far while the map follows you. */
-    private static final int SHACKLE_ROWS = 6;
-    private static final int SHACKLE_LIFT = 2;
+    /**
+     * Padlock frames from shut to open, LOCK_WIDTH x LOCK_HEIGHT each. Opening, the shackle pops up and turns on its
+     * long leg like the vanilla unlocked button; the first row swings right, the second left, always away from the slot.
+     */
+    private static final Identifier LOCK = ImmersiveMapMod.id("hud/map_lock");
+    private static final int LOCK_FRAMES = 6;
+    private static final int LOCK_WIDTH = 17;
+    private static final int LOCK_HEIGHT = 19;
+    private static final int LOCK_GAP = 2;
+    private static final float LOCK_HOLD = 0.12F;
+    private static final float LOCK_TURN = 0.24F;
 
     private MapHud() {
     }
@@ -61,8 +67,8 @@ public final class MapHud {
     }
 
     /**
-     * The lock fades in next to {@code edge} (the outer edge of the map slot), its shackle snapping shut when the map
-     * is pinned or springing open when it follows you again, then fades out.
+     * The padlock fades in next to {@code edge} (the outer edge of the map slot), swings shut when the map is pinned
+     * or pops open when it follows you again, then fades out.
      */
     private static void renderLock(DrawContext context, Arm side, int edge, int height) {
         long age = MapController.lockFlashAge();
@@ -75,14 +81,17 @@ public final class MapHud {
         if (alpha <= 0.0F) {
             return;
         }
-        float motion = MathHelper.clamp(seconds / 0.15F, 0.0F, 1.0F);
-        int lift = Math.round((MapController.lockFlashLocked() ? 1.0F - motion : motion) * SHACKLE_LIFT);
-        int x = side == Arm.LEFT ? edge - 3 - LOCK_WIDTH : edge + 3;
-        int y = height - 5 - LOCK_HEIGHT;
+        // The previous state stays up for a moment so the change reads.
+        float motion = MathHelper.clamp((seconds - LOCK_HOLD) / LOCK_TURN, 0.0F, 1.0F);
+        float open = MapController.lockFlashLocked() ? 1.0F - motion : motion;
+        int frame = Math.min(LOCK_FRAMES - 1, (int) (open * LOCK_FRAMES));
+        boolean left = side == Arm.LEFT;
+        int x = left ? edge - LOCK_GAP - LOCK_WIDTH : edge + LOCK_GAP;
+        int y = height - 21;
         RenderSystem.enableBlend();
         context.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
-        context.drawGuiTexture(LOCK, LOCK_WIDTH, LOCK_HEIGHT, 0, SHACKLE_ROWS, x, y + SHACKLE_ROWS, LOCK_WIDTH, LOCK_HEIGHT - SHACKLE_ROWS);
-        context.drawGuiTexture(LOCK, LOCK_WIDTH, LOCK_HEIGHT, 0, 0, x, y - lift, LOCK_WIDTH, SHACKLE_ROWS);
+        context.drawGuiTexture(LOCK, LOCK_WIDTH * LOCK_FRAMES, LOCK_HEIGHT * 2, frame * LOCK_WIDTH, left ? LOCK_HEIGHT : 0,
+                x, y, LOCK_WIDTH, LOCK_HEIGHT);
         context.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.disableBlend();
     }
