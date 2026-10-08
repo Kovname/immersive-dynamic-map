@@ -11,7 +11,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Holding right click moves the map cursor instead of the camera; the wheel zooms, Shift+wheel changes layer. */
+/**
+ * Map mode (right mouse held with the map in both hands): the mouse moves the map cursor instead of the camera, the
+ * wheel zooms and Shift+wheel changes the layer. Otherwise the mouse is vanilla, and the wheel switches hotbar slots.
+ */
 @Mixin(Mouse.class)
 public abstract class MouseMixin {
     @Shadow
@@ -26,7 +29,7 @@ public abstract class MouseMixin {
 
     @Inject(method = "updateMouse", at = @At("HEAD"), cancellable = true)
     private void immersiveMap$dragMap(double timeDelta, CallbackInfo ci) {
-        if (!MapController.isInteractive() || client.currentScreen != null || !client.options.useKey.isPressed()) {
+        if (!MapController.isInteractive() || !MapController.isMapMode(client)) {
             return;
         }
         MapController.moveCursor(cursorDeltaX, cursorDeltaY);
@@ -37,14 +40,18 @@ public abstract class MouseMixin {
 
     @Inject(method = "onMouseScroll", at = @At("HEAD"), cancellable = true)
     private void immersiveMap$zoom(long window, double horizontal, double vertical, CallbackInfo ci) {
-        if (!MapController.isInteractive() || client.currentScreen != null || window != client.getWindow().getHandle() || vertical == 0.0D) {
+        // All of map mode, including the raise animation, so the wheel never falls through to the hotbar.
+        if (window != client.getWindow().getHandle() || !MapController.isMapMode(client)) {
             return;
         }
-        if (Screen.hasShiftDown()) {
-            MapController.changeLayer(client, vertical > 0 ? 1 : -1);
-        } else {
-            MapController.zoom(vertical);
-        }
         ci.cancel();
+        // Same as vanilla: a horizontal-only scroll (tilt wheels, Shift+wheel on some systems) counts reversed.
+        double raw = vertical != 0.0D ? vertical : -horizontal;
+        if (raw == 0.0D) {
+            return;
+        }
+        double amount = (client.options.getDiscreteMouseScroll().getValue() ? Math.signum(raw) : raw)
+                * client.options.getMouseWheelSensitivity().getValue();
+        MapController.scroll(client, amount, Screen.hasShiftDown());
     }
 }
