@@ -13,6 +13,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.DyeColor;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 
@@ -68,6 +69,8 @@ public final class MapController {
     private static double cursorZ;
     private static boolean cursorVisible;
     private static long cursorActive;
+    /** Set when the marker sheet closes: a cursor left on its buttons by the edge waits for the mouse before panning. */
+    private static boolean edgePanHeld;
     private static long lastFrameNanos;
     private static double scrollAccumulator;
 
@@ -80,6 +83,10 @@ public final class MapController {
     /** Removed by the player; stays hidden until a death somewhere else. */
     private static boolean deathHidden;
     private static boolean wasDead;
+
+    /** Icon and dye of the last marker placed or edited; new markers start with them. */
+    private static MarkerIcon lastIcon = MarkerIcon.BANNER;
+    private static DyeColor lastColor = DyeColor.RED;
 
     private static Path statePath;
     private static boolean stateDirty;
@@ -372,11 +379,25 @@ public final class MapController {
         return centerZ(tickDelta) + cursorZ * blocksPerPixel();
     }
 
+    /** The cursor in map pixels (0..128), as drawn: the texture origin snaps to whole map pixels. */
+    public static double cursorMapX(float tickDelta) {
+        int blocks = blocksPerPixel();
+        return cursorWorldX(tickDelta) / blocks - (Math.floorDiv((int) Math.floor(centerX(tickDelta)), blocks) - MAP_SIZE / 2);
+    }
+
+    public static double cursorMapZ(float tickDelta) {
+        int blocks = blocksPerPixel();
+        return cursorWorldZ(tickDelta) / blocks - (Math.floorDiv((int) Math.floor(centerZ(tickDelta)), blocks) - MAP_SIZE / 2);
+    }
+
     /** Mouse movement while the drag button is held moves the cursor over the map. */
     public static void moveCursor(double mouseDeltaX, double mouseDeltaY) {
         double sensitivity = ClientConfig.get().cursorSensitivity;
         cursorX = MathHelper.clamp(cursorX + mouseDeltaX * sensitivity, -HALF, HALF);
         cursorZ = MathHelper.clamp(cursorZ + mouseDeltaY * sensitivity, -HALF, HALF);
+        if (mouseDeltaX != 0.0 || mouseDeltaY != 0.0) {
+            edgePanHeld = false;
+        }
         cursorVisible = true;
         cursorActive = System.nanoTime();
     }
@@ -405,6 +426,10 @@ public final class MapController {
             return;
         }
         if (!dragging) {
+            return;
+        }
+        // Working the marker sheet near the map edge must not scroll the map away under it.
+        if (edgePanHeld || MapUi.covers(cursorMapX(1.0F), cursorMapZ(1.0F))) {
             return;
         }
         ClientConfig config = ClientConfig.get();
@@ -474,6 +499,9 @@ public final class MapController {
             return;
         }
         scrollAccumulator -= steps;
+        if (MapUi.scroll(cursorMapX(1.0F), cursorMapZ(1.0F), steps)) {
+            return;
+        }
         if (layer) {
             changeLayer(client, steps);
         } else {
@@ -585,7 +613,8 @@ public final class MapController {
 
     /** The death marker is under the cursor (and closer than any banner). */
     public static boolean isDeathHovered(MinecraftClient client, float tickDelta) {
-        if (!isCursorVisible() || client.world == null) {
+        // The open sheet already shows what a tooltip would.
+        if (!isCursorVisible() || client.world == null || MapUi.isOpen()) {
             return false;
         }
         double x = cursorWorldX(tickDelta);
@@ -614,9 +643,9 @@ public final class MapController {
         return dx * dx + dz * dz;
     }
 
-    /** The banner under the cursor, if any. */
+    /** The marker under the cursor, if any. */
     public static Marker hoveredMarker(MinecraftClient client, float tickDelta) {
-        if (!isCursorVisible() || client.world == null || isDeathHovered(client, tickDelta)) {
+        if (!isCursorVisible() || client.world == null || MapUi.isOpen() || isDeathHovered(client, tickDelta)) {
             return null;
         }
         return nearestMarker(client.world.getRegistryKey().getValue(), cursorWorldX(tickDelta), cursorWorldZ(tickDelta));
@@ -641,7 +670,10 @@ public final class MapController {
         return nearest;
     }
 
-    /** Left click in map mode: edit the banner or the death marker under the cursor, or place a new banner there. */
+    /**
+     * Left click in map mode: opens the marker sheet for the death mark or marker under the cursor, or for a new marker
+     * there. The sheet is a screen, or with the experimental option drawn on the map and worked with the cursor.
+     */
     public static void onMapClick(MinecraftClient client) {
         if (client.world == null || client.player == null) {
             return;
@@ -650,21 +682,50 @@ public final class MapController {
         // Map mode always shows the cursor; this also covers a click in the same frame right mouse went down.
         cursorVisible = true;
         cursorActive = System.nanoTime();
+        double mapX = cursorMapX(1.0F);
+        double mapZ = cursorMapZ(1.0F);
+        boolean onMap = ClientConfig.get().markerPanelOnMap;
+        if (onMap && MapUi.click(mapX, mapZ)) {
+            return;
+        }
         double x = cursorWorldX(1.0F);
         double z = cursorWorldZ(1.0F);
+        MarkerPanel panel;
         if (deathPickDistance(dimension, x, z) < markerPickDistance(dimension, x, z)) {
-            client.setScreen(new DeathMarkerScreen(deathX, deathZ));
-            return;
+            panel = MarkerPanel.death(dimension, deathX, deathZ, !onMap);
+        } else {
+            Marker nearest = nearestMarker(dimension, x, z);
+            panel = nearest != null ? MarkerPanel.view(nearest, !onMap)
+                    : MarkerPanel.create(dimension, MathHelper.floor(x), MathHelper.floor(z), !onMap);
         }
-        Marker nearest = nearestMarker(dimension, x, z);
-        if (nearest != null) {
-            client.setScreen(new MarkerEditScreen(nearest));
-            return;
+        if (onMap) {
+            MapUi.open(panel, mapZ);
+        } else {
+            client.setScreen(new MarkerScreen(panel));
         }
-        MarkerColor color = MARKERS.isEmpty() ? MarkerColor.RED : MARKERS.get(MARKERS.size() - 1).color;
-        MARKERS.add(new Marker(dimension, MathHelper.floor(x), MathHelper.floor(z), "", color));
-        client.player.playSound(SoundEvents.UI_CARTOGRAPHY_TABLE_TAKE_RESULT, 0.6F, 1.0F);
+    }
+
+    public static void addMarker(Identifier dimension, int x, int z, String name, MarkerIcon icon, DyeColor color) {
+        MARKERS.add(new Marker(dimension, x, z, name, icon, color));
+        rememberStyle(icon, color);
+    }
+
+    public static void holdEdgePan() {
+        edgePanHeld = true;
+    }
+
+    public static void rememberStyle(MarkerIcon icon, DyeColor color) {
+        lastIcon = icon;
+        lastColor = color;
         stateDirty = true;
+    }
+
+    public static MarkerIcon lastIcon() {
+        return lastIcon;
+    }
+
+    public static DyeColor lastColor() {
+        return lastColor;
     }
 
     public static void removeMarker(Marker marker) {
@@ -677,14 +738,16 @@ public final class MapController {
         private final int x;
         private final int z;
         private String name;
-        private MarkerColor color;
+        private MarkerIcon icon;
+        private DyeColor color;
 
-        private Marker(Identifier dimension, int x, int z, String name, MarkerColor color) {
+        private Marker(Identifier dimension, int x, int z, String name, MarkerIcon icon, DyeColor color) {
             this.dimension = dimension;
             this.x = x;
             this.z = z;
             this.name = name == null ? "" : name;
-            this.color = color == null ? MarkerColor.RED : color;
+            this.icon = icon == null ? MarkerIcon.BANNER : icon;
+            this.color = color == null ? DyeColor.RED : color;
         }
 
         public Identifier dimension() {
@@ -708,12 +771,21 @@ public final class MapController {
             stateDirty = true;
         }
 
-        public MarkerColor color() {
+        public MarkerIcon icon() {
+            return icon;
+        }
+
+        public void setIcon(MarkerIcon icon) {
+            this.icon = icon == null ? MarkerIcon.BANNER : icon;
+            stateDirty = true;
+        }
+
+        public DyeColor color() {
             return color;
         }
 
-        public void setColor(MarkerColor color) {
-            this.color = color == null ? MarkerColor.RED : color;
+        public void setColor(DyeColor color) {
+            this.color = color == null ? DyeColor.RED : color;
             stateDirty = true;
         }
     }
@@ -721,10 +793,12 @@ public final class MapController {
     // ---------------------------------------------------------------- persistence
 
     private record SavedState(double centerX, double centerZ, int scale, boolean follow, List<SavedMarker> markers,
-                              String deathDimension, int deathX, int deathZ, boolean deathHidden) {
+                              String deathDimension, int deathX, int deathZ, boolean deathHidden, String lastIcon,
+                              String lastColor) {
     }
 
-    private record SavedMarker(String dimension, int x, int z, String name, String color) {
+    /** {@code icon} is missing in files from before marker icons; those markers stay banners of their color. */
+    private record SavedMarker(String dimension, int x, int z, String name, String color, String icon) {
     }
 
     public static void loadState(Path root) {
@@ -740,6 +814,9 @@ public final class MapController {
         cursorVisible = false;
         returning = false;
         lockFlashStart = 0L;
+        lastIcon = MarkerIcon.BANNER;
+        lastColor = DyeColor.RED;
+        MapUi.close();
         forceClose();
         if (!Files.isRegularFile(statePath)) {
             return;
@@ -758,7 +835,8 @@ public final class MapController {
                 for (SavedMarker saved : state.markers()) {
                     Identifier dimension = saved.dimension() == null ? null : Identifier.tryParse(saved.dimension());
                     if (dimension != null) {
-                        MARKERS.add(new Marker(dimension, saved.x(), saved.z(), saved.name(), MarkerColor.byId(saved.color())));
+                        MARKERS.add(new Marker(dimension, saved.x(), saved.z(), saved.name(), MarkerIcon.byId(saved.icon()),
+                                DyeColor.byName(saved.color(), DyeColor.RED)));
                     }
                 }
             }
@@ -768,6 +846,10 @@ public final class MapController {
                 deathZ = state.deathZ();
                 deathHidden = state.deathHidden();
             }
+            if (state.lastIcon() != null) {
+                lastIcon = MarkerIcon.byId(state.lastIcon());
+            }
+            lastColor = DyeColor.byName(state.lastColor(), DyeColor.RED);
         } catch (IOException | JsonParseException exception) {
             ImmersiveMapMod.LOGGER.warn("Could not read {}", statePath, exception);
         }
@@ -780,10 +862,11 @@ public final class MapController {
         stateDirty = false;
         List<SavedMarker> saved = new ArrayList<>(MARKERS.size());
         for (Marker marker : MARKERS) {
-            saved.add(new SavedMarker(marker.dimension.toString(), marker.x, marker.z, marker.name, marker.color.id()));
+            saved.add(new SavedMarker(marker.dimension.toString(), marker.x, marker.z, marker.name, marker.color.getName(), marker.icon.id()));
         }
         SavedState state = new SavedState(centerX, centerZ, scale, follow, saved,
-                deathDimension == null ? null : deathDimension.toString(), deathX, deathZ, deathHidden);
+                deathDimension == null ? null : deathDimension.toString(), deathX, deathZ, deathHidden, lastIcon.id(),
+                lastColor.getName());
         try {
             Files.createDirectories(statePath.getParent());
             Files.writeString(statePath, GSON.toJson(state), StandardCharsets.UTF_8);
