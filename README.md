@@ -9,9 +9,9 @@ A Fabric mod for Minecraft 1.21.1 that gives you a map you can always take out, 
 - **Other players are always heads**, clamped to the border when they are outside the map. With the mod on the server, far-away players show up too.
 - **Held like a real map.** `M` lowers your item and raises the map in the vanilla two-handed pose. `Shift+M`, the swap-hands key (`F`) or the number keys move it to the off hand (vanilla one-handed pose), so your main hand stays usable.
 - **Visible to others.** Players holding the map raise their arms and hold a real map sheet, with both hands or in the off hand. Other modded players see this through the server; vanilla clients see a map item in the hand. An off-hand style slot next to the hotbar shows the map is in your hands.
-- **RTS-style navigation.** Hold right mouse to move a map cursor; it fades out after a few idle seconds. Resting it near an edge scrolls the map (Dota-style). With the map out, `N` switches between following you and pinning the map in place: a small padlock flashes next to the map slot, swinging shut or popping open on its long leg like the vanilla unlocked button, and the map glides back to you when it follows again. The wheel or `+`/`-` zooms around the cursor.
-- **Banners.** Left click places a banner under the cursor, or opens the banner you are pointing at to rename, recolor or delete it. Clicking the death X lets you remove it.
-- **Caves and the Nether.** Underground, and on every level of the Nether, the map is a slice at your height (like the cave modes of popular map mods) that only shows what you have actually seen: a floor is drawn when there is a line of sight to it, and rock at eye level becomes a wall (the darkest vanilla shade) when its face is in sight. Pits show their floor however deep, nearby areas fill first, and the revealed radius grows while you stand still. Data is kept in 16-block levels that follow you with a little hysteresis. The Nether has no useless noise surface any more, and the End void is a light wash instead of vanilla's grey bedrock. `Page Up`/`Page Down` or `Shift+wheel` pick a level manually, and `Home` returns to automatic.
+- **Map mode on right mouse.** With the map in both hands, hold right mouse to work the map: the mouse moves a map cursor (it fades out after a few idle seconds), left click places banners, the wheel zooms around the cursor and resting the cursor near an edge scrolls the map (Dota-style). Without right mouse the mouse is vanilla: you attack and break blocks with the item in the selected slot, and the wheel switches hotbar slots (moving the map to the off hand). With the map out, `N` switches between following you and pinning the map in place: a small padlock flashes next to the map slot, swinging shut or popping open on its long leg like the vanilla unlocked button, and the map glides back to you when it follows again. `+`/`-` zoom at any time.
+- **Banners.** In map mode, left click places a banner under the cursor, or opens the banner you are pointing at to rename, recolor or delete it. Clicking the death X lets you remove it.
+- **Caves and the Nether.** Underground, and on every level of the Nether, the map is a slice at your height (like the cave modes of popular map mods) that only shows what you have actually seen: a floor is drawn when there is a line of sight to it, and rock at eye level becomes a wall (the darkest vanilla shade) when its face is in sight. Pits show their floor however deep, nearby areas fill first, and the revealed radius grows while you stand still. Data is kept in 16-block levels that follow you with a little hysteresis. The Nether has no useless noise surface any more, and the End void is a light wash instead of vanilla's grey bedrock. `Page Up`/`Page Down`, or `Shift+wheel` in map mode, pick a level manually, and `Home` returns to automatic.
 - **Mobs.** Optional mob icons are the front of each mob's head, made from its own model and texture (filterable; hostile mobs get a dark red outline). The surface map skips mobs in caves, and cave maps show only mobs near your height.
 - **Extras.** A vanilla red X at your last death, a chunk grid, coordinates (bottom left), biome (bottom right), layer and scale in soft ink on the parchment border, and a world-lit or always-bright map.
 - **Background drawing.** Loaded chunks are read under a per-tick time budget, nearby chunks are rescanned so block edits show up, and region files are compressed and saved on a background thread.
@@ -24,13 +24,13 @@ A Fabric mod for Minecraft 1.21.1 that gives you a map you can always take out, 
 | `M` | Take out / put away the map |
 | `Shift+M`, `F` (swap hands) | Move the map between both hands and the off hand |
 | `N` (map out) | Follow you / pin the map in place |
-| Right mouse (hold) + move | Move the cursor; at the edge the map scrolls |
-| Mouse wheel, `+` / `-` | Zoom |
-| `Shift` + wheel, `Page Up` / `Page Down` | Change layer |
+| Right mouse (hold) + move | Map mode: move the cursor; at the edge the map scrolls |
+| Wheel in map mode, `+` / `-` | Zoom |
+| `Shift` + wheel in map mode, `Page Up` / `Page Down` | Change layer |
 | `Home` | Automatic layer |
-| Left click | Place a banner / edit the banner or death mark under the cursor |
+| Left click in map mode | Place a banner / edit the banner or death mark under the cursor |
 
-All keys can be rebound in Controls.
+Outside map mode left click attacks and breaks blocks and the wheel switches hotbar slots, as in vanilla. All keys can be rebound in Controls.
 
 ## Server
 

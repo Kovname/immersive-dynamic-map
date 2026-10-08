@@ -92,7 +92,7 @@
   "config.immersive_map.option.smartCaveLayers": "Cave maps",
   "config.immersive_map.option.smartCaveLayers.tooltip": "Underground, and on every level of the Nether, the map is a slice at your height that only shows floors and walls you have actually seen.",
   "config.immersive_map.option.autoCaveLayer": "Switch to the cave map underground",
-  "config.immersive_map.option.autoCaveLayer.tooltip": "Page Up/Down or Shift+wheel choose a layer manually, Home returns to automatic. The Nether always uses levels.",
+  "config.immersive_map.option.autoCaveLayer.tooltip": "Page Up/Down, or Shift+wheel while holding right mouse, choose a layer manually, Home returns to automatic. The Nether always uses levels.",
   "config.immersive_map.option.caveViewDistance": "Cave sight distance",
   "config.immersive_map.option.caveViewDistance.tooltip": "How far, in blocks, floors and walls in your line of sight are mapped. Nearest areas fill first.",
   "config.immersive_map.option.mapSync": "Share map with all players",

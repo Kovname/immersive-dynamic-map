@@ -92,7 +92,7 @@
   "config.immersive_map.option.smartCaveLayers": "Карты пещер",
   "config.immersive_map.option.smartCaveLayers.tooltip": "Под землёй и на каждом уровне Ада карта показывает срез на вашей высоте — только тот пол и те стены, которые вы реально видели.",
   "config.immersive_map.option.autoCaveLayer": "Карта пещер под землёй автоматически",
-  "config.immersive_map.option.autoCaveLayer.tooltip": "Page Up/Down или Shift+колесо выбирают слой вручную, Home возвращает автоматический. В Аду всегда уровни.",
+  "config.immersive_map.option.autoCaveLayer.tooltip": "Page Up/Down или Shift+колесо с зажатой ПКМ выбирают слой вручную, Home возвращает автоматический. В Аду всегда уровни.",
   "config.immersive_map.option.caveViewDistance": "Дальность обзора пещер",
   "config.immersive_map.option.caveViewDistance.tooltip": "На каком расстоянии (в блоках) наносится пол и стены в прямой видимости. Ближние места заполняются первыми.",
   "config.immersive_map.option.mapSync": "Общая карта для всех игроков",

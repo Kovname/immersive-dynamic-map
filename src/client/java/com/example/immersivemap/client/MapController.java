@@ -69,6 +69,7 @@ public final class MapController {
     private static boolean cursorVisible;
     private static long cursorActive;
     private static long lastFrameNanos;
+    private static double scrollAccumulator;
 
     /** {@code null} = automatic layer (surface, or the explored cave band underground). */
     private static LayerId manualLayer;
@@ -215,7 +216,7 @@ public final class MapController {
         return open;
     }
 
-    /** The map is out in both hands: mouse and buttons drive the map instead of the world. */
+    /** The map is out in both hands and fully raised, so map mode can work it. */
     public static boolean isInteractive() {
         return open && hold == HoldState.BOTH_HANDS && renderedHold == HoldState.BOTH_HANDS;
     }
@@ -223,6 +224,14 @@ public final class MapController {
     /** The hand items are put away (or being put away) for the two-handed map. */
     public static boolean blocksHands() {
         return open && hold == HoldState.BOTH_HANDS;
+    }
+
+    /**
+     * Map mode: right mouse held with the map in both hands. The mouse then moves the map cursor, left click places
+     * banners and the wheel zooms; otherwise attacking, breaking and the hotbar wheel stay vanilla.
+     */
+    public static boolean isMapMode(MinecraftClient client) {
+        return blocksHands() && client.currentScreen == null && client.options.useKey.isPressed();
     }
 
     public static boolean isVisible() {
@@ -380,10 +389,14 @@ public final class MapController {
         long now = System.nanoTime();
         double seconds = lastFrameNanos == 0L ? 0.0 : Math.min((now - lastFrameNanos) / 1.0E9, 0.1);
         lastFrameNanos = now;
+        boolean dragging = isInteractive() && isMapMode(client);
+        if (dragging) {
+            // Map mode shows the cursor right away, where it was left, so you see where a click goes.
+            cursorVisible = true;
+        }
         if (!isCursorVisible()) {
             return;
         }
-        boolean dragging = client.currentScreen == null && client.options.useKey.isPressed();
         if (dragging || client.currentScreen != null) {
             // Holding the drag button (or editing a banner) keeps the cursor alive even without mouse movement.
             cursorActive = now;
@@ -444,6 +457,27 @@ public final class MapController {
         ClientPlayerEntity player = MinecraftClient.getInstance().player;
         if (player != null) {
             player.playSound(SoundEvents.ITEM_BOOK_PAGE_TURN, 0.3F, 0.8F + scale * 0.15F);
+        }
+    }
+
+    /**
+     * Mouse wheel in map mode: zooms, or changes the layer with Shift. Like vanilla, fractional deltas from smooth
+     * wheels and touchpads add up to whole steps instead of each tiny event jumping a full step.
+     */
+    public static void scroll(MinecraftClient client, double amount, boolean layer) {
+        if (scrollAccumulator != 0.0 && Math.signum(amount) != Math.signum(scrollAccumulator)) {
+            scrollAccumulator = 0.0;
+        }
+        scrollAccumulator += amount;
+        int steps = (int) scrollAccumulator;
+        if (steps == 0) {
+            return;
+        }
+        scrollAccumulator -= steps;
+        if (layer) {
+            changeLayer(client, steps);
+        } else {
+            zoom(steps);
         }
     }
 
@@ -607,18 +641,17 @@ public final class MapController {
         return nearest;
     }
 
-    /** Left click on the open map: edit the banner or the death marker under the cursor, or place a new banner. */
+    /** Left click in map mode: edit the banner or the death marker under the cursor, or place a new banner there. */
     public static void onMapClick(MinecraftClient client) {
         if (client.world == null || client.player == null) {
             return;
         }
         Identifier dimension = client.world.getRegistryKey().getValue();
-        boolean cursor = isCursorVisible();
-        if (cursor) {
-            cursorActive = System.nanoTime();
-        }
-        double x = cursor ? cursorWorldX(1.0F) : client.player.getX();
-        double z = cursor ? cursorWorldZ(1.0F) : client.player.getZ();
+        // Map mode always shows the cursor; this also covers a click in the same frame right mouse went down.
+        cursorVisible = true;
+        cursorActive = System.nanoTime();
+        double x = cursorWorldX(1.0F);
+        double z = cursorWorldZ(1.0F);
         if (deathPickDistance(dimension, x, z) < markerPickDistance(dimension, x, z)) {
             client.setScreen(new DeathMarkerScreen(deathX, deathZ));
             return;
