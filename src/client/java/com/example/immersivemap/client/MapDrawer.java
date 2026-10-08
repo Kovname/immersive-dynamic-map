@@ -25,7 +25,9 @@ import net.minecraft.item.map.MapDecorationTypes;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.screen.PlayerScreenHandler;
 import net.minecraft.text.Text;
+import net.minecraft.util.DyeColor;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.Util;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RotationAxis;
@@ -48,7 +50,7 @@ import java.util.UUID;
 public final class MapDrawer {
     public static final Identifier BACKGROUND_TEXTURE = Identifier.ofVanilla("textures/map/map_background_checkerboard.png");
     private static final RenderLayer BACKGROUND = RenderLayer.getText(BACKGROUND_TEXTURE);
-    private static final RenderLayer CURSOR = RenderLayer.getText(ImmersiveMapMod.id("textures/map/cursor.png"));
+    private static final Identifier CURSOR_TEXTURE = ImmersiveMapMod.id("textures/map/cursor.png");
     private static final Identifier EGG = Identifier.ofVanilla("item/spawn_egg");
     private static final Identifier EGG_OVERLAY = Identifier.ofVanilla("item/spawn_egg_overlay");
     private static final float SIZE = MapController.MAP_SIZE;
@@ -66,6 +68,11 @@ public final class MapDrawer {
     private static final float BOTTOM_TEXT = 128.45F;
     /** The left thumb of the two-handed pose covers the first few pixels of the bottom border. */
     private static final float BOTTOM_LEFT_TEXT = 8.0F;
+    /** Tooltip, marker sheet and cursor: in front of every decoration, however many there are. */
+    private static final float OVERLAY_Z = -1.0F;
+    private static final int TOOLTIP_BACKGROUND = 0xF0100010;
+    private static final int TOOLTIP_BORDER_TOP = 0x505000FF;
+    private static final int TOOLTIP_BORDER_BOTTOM = 0x5028007F;
     /** Vanilla switches to the small off-limits dot this many blocks away from the map. */
     private static final double OFF_MAP_RANGE = 320.0;
 
@@ -127,13 +134,11 @@ public final class MapDrawer {
             float x = view.x(MapController.deathX() + 0.5);
             float z = view.z(MapController.deathZ() + 0.5);
             if (view.inside(x, z)) {
-                drawDecoration(matrices, vertexConsumers, atlas, MapDecorationTypes.RED_X, x, z, 0.0F, depth, light);
-                if (MapController.isDeathHovered(client, tickDelta)) {
-                    drawName(matrices, vertexConsumers, client.textRenderer, Text.translatable("map.immersive_map.death"), x, z, light);
-                }
+                drawIcon(matrices, vertexConsumers, MarkerIcon.sprite(MarkerIcon.DEATH), x, z, 0.0F, -1, depth, light);
             }
         }
 
+        MarkerPanel panel = activePanel(client);
         MapController.Marker hovered = MapController.hoveredMarker(client, tickDelta);
         for (MapController.Marker marker : MapController.markers()) {
             if (!marker.dimension().equals(dimension)) {
@@ -144,9 +149,22 @@ public final class MapDrawer {
             if (!view.inside(x, z)) {
                 continue;
             }
-            drawDecoration(matrices, vertexConsumers, atlas, marker.color().decorationType(), x, z, 0.0F, depth, light);
-            if (!marker.name().isEmpty() && (config.showMarkerNames || marker == hovered)) {
+            boolean previewing = panel != null && panel.edits(marker);
+            MarkerIcon icon = previewing ? panel.icon() : marker.icon();
+            DyeColor color = previewing ? panel.color() : marker.color();
+            drawIcon(matrices, vertexConsumers, icon.sprite(color), x, z, 0.0F, -1, depth, light);
+            if (config.alwaysShowMarkerNames && !marker.name().isEmpty() && marker != hovered) {
                 drawName(matrices, vertexConsumers, client.textRenderer, Text.literal(marker.name()), x, z, light);
+            }
+        }
+        if (panel != null && panel.isDraft() && panel.dimension().equals(dimension)) {
+            float x = view.x(panel.x() + 0.5);
+            float z = view.z(panel.z() + 0.5);
+            if (view.inside(x, z)) {
+                // The marker being made pulses until it is placed.
+                float pulse = 0.5F + 0.5F * MathHelper.sin((Util.getMeasuringTimeMs() % 62832L) / 160.0F);
+                int alpha = (int) (130.0F + 125.0F * pulse);
+                drawIcon(matrices, vertexConsumers, panel.icon().sprite(panel.color()), x, z, 0.0F, alpha << 24 | 0xFFFFFF, depth, light);
             }
         }
 
@@ -174,10 +192,22 @@ public final class MapDrawer {
 
         drawSelf(client, matrices, vertexConsumers, atlas, view, config, tickDelta, depth, light);
 
+        PanelCanvas overlay = PanelCanvas.map(matrices, vertexConsumers, client.textRenderer, light, OVERLAY_Z);
+        if (MapController.isDeathHovered(client, tickDelta)) {
+            drawTooltip(overlay, List.of(Text.translatable("map.immersive_map.death"),
+                            MarkerPanel.where(MapController.deathX(), MapController.deathZ())),
+                    view.x(MapController.deathX() + 0.5), view.z(MapController.deathZ() + 0.5));
+        } else if (hovered != null) {
+            Text title = hovered.name().isEmpty() ? hovered.icon().displayName() : Text.literal(hovered.name());
+            drawTooltip(overlay, List.of(title, MarkerPanel.where(hovered.x(), hovered.z())),
+                    view.x(hovered.x() + 0.5), view.z(hovered.z() + 0.5));
+        }
+        float cursorX = view.x(MapController.cursorWorldX(tickDelta));
+        float cursorZ = view.z(MapController.cursorWorldZ(tickDelta));
+        MapUi.render(overlay, cursorX, cursorZ, MapController.isCursorVisible());
         float cursorAlpha = MapController.cursorAlpha();
         if (cursorAlpha > 0.0F) {
-            drawCursor(vertexConsumers, matrices, view.x(MapController.cursorWorldX(tickDelta)),
-                    view.z(MapController.cursorWorldZ(tickDelta)), cursorAlpha, light);
+            drawCursor(overlay, cursorX, cursorZ, cursorAlpha);
         }
 
         drawMargins(client, matrices, vertexConsumers, layer, scale, config, tickDelta, light);
@@ -343,11 +373,55 @@ public final class MapDrawer {
     }
 
     /** The hotspot (top-left texel) sits on the cursor position. */
-    private static void drawCursor(VertexConsumerProvider vertexConsumers, MatrixStack matrices, float x, float z, float alpha, int light) {
+    private static void drawCursor(PanelCanvas overlay, float x, float z, float alpha) {
         float texel = 0.75F;
         int color = MathHelper.clamp((int) (alpha * 255.0F), 0, 255) << 24 | 0xFFFFFF;
-        quad(vertexConsumers.getBuffer(CURSOR), matrices.peek().getPositionMatrix(),
-                x - texel * 0.5F, z - texel * 0.5F, x + texel * 15.5F, z + texel * 15.5F, -0.08F, color, light);
+        overlay.texture(CURSOR_TEXTURE, x - texel * 0.5F, z - texel * 0.5F, x + texel * 15.5F, z + texel * 15.5F,
+                0.0F, 0.0F, 1.0F, 1.0F, color);
+    }
+
+    /**
+     * A vanilla tooltip (the colors of {@code TooltipBackgroundRenderer}) at half size, so hovering a marker reads
+     * like hovering an item: above the marker, or below it near the top edge.
+     */
+    private static void drawTooltip(PanelCanvas c, List<Text> lines, float anchorX, float anchorZ) {
+        float s = 0.5F;
+        float width = 0.0F;
+        for (Text line : lines) {
+            width = Math.max(width, c.width(line, s));
+        }
+        float height = lines.size() * 10.0F * s + (lines.size() > 1 ? 2.0F * s : 0.0F) - 2.0F * s;
+        float pad = 3.0F * s;
+        float x = MathHelper.clamp(anchorX - width / 2.0F, pad + 1.0F, SIZE - width - pad - 1.0F);
+        float y = anchorZ - 6.0F - height - pad;
+        if (y < pad + 1.0F) {
+            y = anchorZ + 6.0F + pad;
+        }
+        float x0 = x - pad;
+        float y0 = y - pad;
+        float x1 = x + width + pad;
+        float y1 = y + height + pad;
+        c.fill(x0, y0 - s, x1, y0, TOOLTIP_BACKGROUND);
+        c.fill(x0, y1, x1, y1 + s, TOOLTIP_BACKGROUND);
+        c.fill(x0, y0, x1, y1, TOOLTIP_BACKGROUND);
+        c.fill(x0 - s, y0, x0, y1, TOOLTIP_BACKGROUND);
+        c.fill(x1, y0, x1 + s, y1, TOOLTIP_BACKGROUND);
+        c.fillGradient(x0, y0 + s, x0 + s, y1 - s, TOOLTIP_BORDER_TOP, TOOLTIP_BORDER_BOTTOM);
+        c.fillGradient(x1 - s, y0 + s, x1, y1 - s, TOOLTIP_BORDER_TOP, TOOLTIP_BORDER_BOTTOM);
+        c.fill(x0, y0, x1, y0 + s, TOOLTIP_BORDER_TOP);
+        c.fill(x0, y1 - s, x1, y1, TOOLTIP_BORDER_BOTTOM);
+        float lineY = y;
+        for (int i = 0; i < lines.size(); i++) {
+            c.text(lines.get(i), x, lineY, s, i == 0 ? 0xFFFFFFFF : 0xFFAAAAAA);
+            lineY += 10.0F * s + (i == 0 ? 2.0F * s : 0.0F);
+        }
+    }
+
+    private static MarkerPanel activePanel(MinecraftClient client) {
+        if (MapUi.panel() != null) {
+            return MapUi.panel();
+        }
+        return client.currentScreen instanceof MarkerScreen screen ? screen.panel() : null;
     }
 
     /**
@@ -388,11 +462,16 @@ public final class MapDrawer {
 
     // ---------------------------------------------------------------- primitives
 
-    /** Same transform as {@code MapRenderer.MapTexture#draw} uses for decorations. */
     private static void drawDecoration(MatrixStack matrices, VertexConsumerProvider vertexConsumers, MapDecorationsAtlasManager atlas,
                                        RegistryEntry<MapDecorationType> type, float x, float z, float rotation,
                                        int[] depth, int light) {
-        Sprite sprite = atlas.getSprite(new MapDecoration(type, (byte) 0, (byte) 0, (byte) 0, Optional.empty()));
+        drawIcon(matrices, vertexConsumers, atlas.getSprite(new MapDecoration(type, (byte) 0, (byte) 0, (byte) 0, Optional.empty())),
+                x, z, rotation, -1, depth, light);
+    }
+
+    /** Same transform as {@code MapRenderer.MapTexture#draw} uses for decorations. */
+    private static void drawIcon(MatrixStack matrices, VertexConsumerProvider vertexConsumers, Sprite sprite, float x, float z,
+                                 float rotation, int color, int[] depth, int light) {
         matrices.push();
         matrices.translate(x, z, -0.02F);
         matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(rotation));
@@ -401,14 +480,14 @@ public final class MapDrawer {
         Matrix4f matrix = matrices.peek().getPositionMatrix();
         float layer = depth[0]++ * -0.001F;
         VertexConsumer consumer = vertexConsumers.getBuffer(RenderLayer.getText(sprite.getAtlasId()));
-        consumer.vertex(matrix, -1.0F, 1.0F, layer).color(-1).texture(sprite.getMinU(), sprite.getMinV()).light(light);
-        consumer.vertex(matrix, 1.0F, 1.0F, layer).color(-1).texture(sprite.getMaxU(), sprite.getMinV()).light(light);
-        consumer.vertex(matrix, 1.0F, -1.0F, layer).color(-1).texture(sprite.getMaxU(), sprite.getMaxV()).light(light);
-        consumer.vertex(matrix, -1.0F, -1.0F, layer).color(-1).texture(sprite.getMinU(), sprite.getMaxV()).light(light);
+        consumer.vertex(matrix, -1.0F, 1.0F, layer).color(color).texture(sprite.getMinU(), sprite.getMinV()).light(light);
+        consumer.vertex(matrix, 1.0F, 1.0F, layer).color(color).texture(sprite.getMaxU(), sprite.getMinV()).light(light);
+        consumer.vertex(matrix, 1.0F, -1.0F, layer).color(color).texture(sprite.getMaxU(), sprite.getMaxV()).light(light);
+        consumer.vertex(matrix, -1.0F, -1.0F, layer).color(color).texture(sprite.getMinU(), sprite.getMaxV()).light(light);
         matrices.pop();
     }
 
-    /** Vanilla banner name label: scaled to at most 25 map pixels, on a translucent black plate. */
+    /** Vanilla banner name label (scaled to at most 25 map pixels, on a translucent black plate), for "always show names". */
     private static void drawName(MatrixStack matrices, VertexConsumerProvider vertexConsumers, TextRenderer textRenderer,
                                  Text text, float x, float z, int light) {
         float width = textRenderer.getWidth(text);

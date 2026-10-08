@@ -70,7 +70,7 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setSaveConsumer(v -> c.mobFilter = v).build());
             contents.addEntry(e.startIntSlider(option("maxMobIcons"), c.maxMobIcons, 1, 256)
                     .setDefaultValue(d.maxMobIcons).setSaveConsumer(v -> c.maxMobIcons = v).build());
-            bool(contents, e, "showMarkerNames", c.showMarkerNames, d.showMarkerNames, v -> c.showMarkerNames = v);
+            bool(contents, e, "alwaysShowMarkerNames", c.alwaysShowMarkerNames, d.alwaysShowMarkerNames, v -> c.alwaysShowMarkerNames = v);
             bool(contents, e, "showDeathMarker", c.showDeathMarker, d.showDeathMarker, v -> c.showDeathMarker = v);
             bool(contents, e, "showChunkGrid", c.showChunkGrid, d.showChunkGrid, v -> c.showChunkGrid = v);
             bool(contents, e, "showCoordinates", c.showCoordinates, d.showCoordinates, v -> c.showCoordinates = v);
@@ -89,6 +89,7 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setSaveConsumer(v -> c.scanBudgetMs = v).build());
 
             ConfigCategory experimental = builder.getOrCreateCategory(Text.translatable("config.immersive_map.experimental"));
+            bool(experimental, e, "markerPanelOnMap", c.markerPanelOnMap, d.markerPanelOnMap, v -> c.markerPanelOnMap = v);
             bool(experimental, e, "mapSync", c.mapSync, d.mapSync, v -> c.mapSync = v);
             bool(experimental, e, "showCursorBiome", c.showCursorBiome, d.showCursorBiome, v -> c.showCursorBiome = v);
             return builder.build();

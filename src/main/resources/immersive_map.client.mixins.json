@@ -9,12 +9,14 @@
         "HeldItemFeatureRendererMixin",
         "HeldItemRendererMixin",
         "InGameHudMixin",
+        "KeyboardMixin",
         "LlamaEntityModelAccessor",
         "MapRendererAccessor",
         "MinecraftClientMixin",
         "MouseMixin",
         "PlayerEntityModelMixin",
-        "RabbitEntityModelAccessor"
+        "RabbitEntityModelAccessor",
+        "SpriteAtlasHolderInvoker"
     ],
     "injectors": {
         "defaultRequire": 1

@@ -6,6 +6,7 @@ import com.example.immersivemap.client.HeldMapPoses;
 import com.example.immersivemap.client.ImmersiveMapClientState;
 import com.example.immersivemap.client.MapController;
 import com.example.immersivemap.client.MapStore;
+import com.example.immersivemap.client.MapUi;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientEntityEvents;
@@ -82,6 +83,7 @@ public class ImmersiveMapClient implements ClientModInitializer {
             }
 
             MapController.tick(client);
+            MapUi.tick(client);
             MapStore store = ImmersiveMapClientState.store();
             if (store != null) {
                 store.tick();

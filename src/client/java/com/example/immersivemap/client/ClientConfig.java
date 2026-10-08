@@ -52,7 +52,8 @@ public final class ClientConfig {
     public boolean showMobs = false;
     public MobFilter mobFilter = MobFilter.ALL;
     public int maxMobIcons = 48;
-    public boolean showMarkerNames = true;
+    /** Off: like hovering an item, a marker's name shows in a tooltip when the cursor is on it. */
+    public boolean alwaysShowMarkerNames = false;
     public boolean showDeathMarker = true;
     public boolean showChunkGrid = false;
     public boolean showCoordinates = true;
@@ -70,6 +71,8 @@ public final class ClientConfig {
 
     // Experimental
     public boolean mapSync = false;
+    /** The marker sheet is drawn on the held map and worked with the map cursor instead of opening a screen. */
+    public boolean markerPanelOnMap = false;
     public boolean showCursorBiome = false;
 
     public static ClientConfig get() {
