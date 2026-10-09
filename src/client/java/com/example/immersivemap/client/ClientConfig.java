@@ -68,6 +68,11 @@ public final class ClientConfig {
     public boolean autoCaveLayer = true;
     /** How far (in blocks) the cave map looks for floors and walls in sight. */
     public int caveViewDistance = 64;
+    /** Layers above and below the shown one that show through, faded, where it is unexplored. */
+    public int caveLayersAbove = 2;
+    public int caveLayersBelow = 3;
+    /** Opacity in percent of the nearest blended layer; each further one is fainter. */
+    public int caveLayerBlend = 45;
 
     // Experimental
     public boolean mapSync = false;
@@ -107,6 +112,9 @@ public final class ClientConfig {
         maxMobIcons = MathHelper.clamp(maxMobIcons, 1, 256);
         scanBudgetMs = MathHelper.clamp(scanBudgetMs, 0.25F, 8.0F);
         caveViewDistance = MathHelper.clamp(caveViewDistance, CaveMapper.MIN_DISTANCE, CaveMapper.MAX_DISTANCE);
+        caveLayersAbove = MathHelper.clamp(caveLayersAbove, 0, 4);
+        caveLayersBelow = MathHelper.clamp(caveLayersBelow, 0, 4);
+        caveLayerBlend = MathHelper.clamp(caveLayerBlend, 0, 100);
         if (playerMarker == null) {
             playerMarker = PlayerMarker.ARROW;
         }

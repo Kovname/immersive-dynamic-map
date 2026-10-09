@@ -15,6 +15,7 @@
         "MinecraftClientMixin",
         "MouseMixin",
         "PlayerEntityModelMixin",
+        "PlayerEntityRendererMixin",
         "RabbitEntityModelAccessor",
         "SpriteAtlasHolderInvoker"
     ],

@@ -112,9 +112,20 @@ public final class MapDrawer {
         double centerX = MapController.centerX(tickDelta);
         double centerZ = MapController.centerZ(tickDelta);
         LayerId layer = MapController.currentLayer(client);
+        MapTexture.Blend blend = new MapTexture.Blend(config.caveLayersAbove, config.caveLayersBelow,
+                config.caveLayerBlend / 100.0F, LayerId.bandOf(client.player.getBlockY()), !MapScanner.usesLevels(client.world));
+        ImmersiveMapClientState.showLayer(layer);
         MapTexture texture = ImmersiveMapClientState.texture();
-        texture.update(ImmersiveMapClientState.store(), layer, scale, centerX, centerZ);
+        texture.update(ImmersiveMapClientState.store(), layer, blend, scale, centerX, centerZ);
         quad(vertexConsumers.getBuffer(RenderLayer.getText(texture.id())), matrix, 0.0F, 0.0F, 128.0F, 128.0F, -0.01F, -1, light);
+        MapTexture previous = ImmersiveMapClientState.fadingTexture();
+        if (previous != null) {
+            // Requested after the new layer so it is drawn over it.
+            previous.update(ImmersiveMapClientState.store(), previous.layer(), blend, scale, centerX, centerZ);
+            int alpha = (int) (ImmersiveMapClientState.fadingAlpha() * 255.0F);
+            quad(vertexConsumers.getBuffer(RenderLayer.getText(previous.id())), matrix, 0.0F, 0.0F, 128.0F, 128.0F, -0.011F,
+                    alpha << 24 | 0xFFFFFF, light);
+        }
 
         View view = new View(texture.originX(), texture.originZ(), blocks);
         if (config.showChunkGrid && scale <= 2) {

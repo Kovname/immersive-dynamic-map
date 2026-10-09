@@ -1,10 +1,13 @@
 package com.example.immersivemap.client;
 
 import com.example.immersivemap.ImmersiveMapMod;
+import com.example.immersivemap.map.LayerId;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ServerInfo;
 import net.minecraft.server.integrated.IntegratedServer;
+import net.minecraft.util.Util;
 import net.minecraft.util.WorldSavePath;
+import net.minecraft.util.math.MathHelper;
 
 import java.nio.file.Path;
 
@@ -13,7 +16,11 @@ public final class ImmersiveMapClientState {
     private static final MapScanner SCANNER = new MapScanner();
     private static final PlayerTracker PLAYERS = new PlayerTracker();
     private static MapStore store;
+    private static final long LAYER_FADE_MS = 350L;
     private static MapTexture texture;
+    /** The previous layer, faded out over the new one after the shown layer changes. */
+    private static MapTexture fading;
+    private static long fadeStart;
 
     private ImmersiveMapClientState() {
     }
@@ -32,9 +39,33 @@ public final class ImmersiveMapClientState {
 
     public static MapTexture texture() {
         if (texture == null) {
-            texture = new MapTexture();
+            texture = new MapTexture("dynamic_map");
         }
         return texture;
+    }
+
+    /** Call before updating the texture: starts a crossfade from the previous layer when the shown one changes. */
+    public static void showLayer(LayerId layer) {
+        MapTexture current = texture();
+        LayerId built = current.layer();
+        if (layer == null || built == null || built.equals(layer) || !built.dimension().equals(layer.dimension())) {
+            return;
+        }
+        texture = fading != null ? fading : new MapTexture("dynamic_map_previous");
+        texture.invalidate();
+        fading = current;
+        fadeStart = Util.getMeasuringTimeMs();
+    }
+
+    /** The previous layer's texture while it is fading out, else {@code null}. */
+    public static MapTexture fadingTexture() {
+        return fading != null && Util.getMeasuringTimeMs() - fadeStart < LAYER_FADE_MS ? fading : null;
+    }
+
+    /** Opacity of {@link #fadingTexture()}, from 1 right after the change down to 0. */
+    public static float fadingAlpha() {
+        float t = MathHelper.clamp((Util.getMeasuringTimeMs() - fadeStart) / (float) LAYER_FADE_MS, 0.0F, 1.0F);
+        return 1.0F - t * t * (3.0F - 2.0F * t);
     }
 
     public static void onJoin(MinecraftClient client) {
@@ -56,6 +87,10 @@ public final class ImmersiveMapClientState {
         if (texture != null) {
             texture.invalidate();
         }
+        if (fading != null) {
+            fading.invalidate();
+        }
+        fadeStart = 0L;
     }
 
     private static String worldId(MinecraftClient client) {
