@@ -134,7 +134,7 @@ public final class MapDrawer {
             float x = view.x(MapController.deathX() + 0.5);
             float z = view.z(MapController.deathZ() + 0.5);
             if (view.inside(x, z)) {
-                drawIcon(matrices, vertexConsumers, MarkerIcon.sprite(MarkerIcon.DEATH), x, z, 0.0F, -1, depth, light);
+                drawMarker(matrices, vertexConsumers, MarkerIcon.sprite(MarkerIcon.DEATH), x, z, -1, depth, light);
             }
         }
 
@@ -152,7 +152,7 @@ public final class MapDrawer {
             boolean previewing = panel != null && panel.edits(marker);
             MarkerIcon icon = previewing ? panel.icon() : marker.icon();
             DyeColor color = previewing ? panel.color() : marker.color();
-            drawIcon(matrices, vertexConsumers, icon.sprite(color), x, z, 0.0F, icon.tint(color), depth, light);
+            drawMarker(matrices, vertexConsumers, icon.sprite(color), x, z, icon.tint(color), depth, light);
             if (config.alwaysShowMarkerNames && !marker.name().isEmpty() && marker != hovered) {
                 drawName(matrices, vertexConsumers, client.textRenderer, Text.literal(marker.name()), x, z, light);
             }
@@ -164,7 +164,7 @@ public final class MapDrawer {
                 // The marker being made pulses until it is placed.
                 float pulse = 0.5F + 0.5F * MathHelper.sin((Util.getMeasuringTimeMs() % 62832L) / 160.0F);
                 int alpha = (int) (130.0F + 125.0F * pulse);
-                drawIcon(matrices, vertexConsumers, panel.icon().sprite(panel.color()), x, z, 0.0F,
+                drawMarker(matrices, vertexConsumers, panel.icon().sprite(panel.color()), x, z,
                         alpha << 24 | panel.icon().tint(panel.color()) & 0xFFFFFF, depth, light);
             }
         }
@@ -467,12 +467,21 @@ public final class MapDrawer {
                                        RegistryEntry<MapDecorationType> type, float x, float z, float rotation,
                                        int[] depth, int light) {
         drawIcon(matrices, vertexConsumers, atlas.getSprite(new MapDecoration(type, (byte) 0, (byte) 0, (byte) 0, Optional.empty())),
-                x, z, rotation, -1, depth, light);
+                x, z, rotation, false, -1, depth, light);
+    }
+
+    /**
+     * A marker icon upright, as it is drawn in its texture and on the marker sheet. Vanilla draws decoration textures
+     * upside down and turns banners by 180 degrees, which rights them but mirrors them; the swapped U undoes the mirror.
+     */
+    private static void drawMarker(MatrixStack matrices, VertexConsumerProvider vertexConsumers, Sprite sprite, float x, float z,
+                                   int color, int[] depth, int light) {
+        drawIcon(matrices, vertexConsumers, sprite, x, z, 180.0F, true, color, depth, light);
     }
 
     /** Same transform as {@code MapRenderer.MapTexture#draw} uses for decorations. */
     private static void drawIcon(MatrixStack matrices, VertexConsumerProvider vertexConsumers, Sprite sprite, float x, float z,
-                                 float rotation, int color, int[] depth, int light) {
+                                 float rotation, boolean mirror, int color, int[] depth, int light) {
         matrices.push();
         matrices.translate(x, z, -0.02F);
         matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(rotation));
@@ -480,11 +489,13 @@ public final class MapDrawer {
         matrices.translate(-0.125F, 0.125F, 0.0F);
         Matrix4f matrix = matrices.peek().getPositionMatrix();
         float layer = depth[0]++ * -0.001F;
+        float u0 = mirror ? sprite.getMaxU() : sprite.getMinU();
+        float u1 = mirror ? sprite.getMinU() : sprite.getMaxU();
         VertexConsumer consumer = vertexConsumers.getBuffer(RenderLayer.getText(sprite.getAtlasId()));
-        consumer.vertex(matrix, -1.0F, 1.0F, layer).color(color).texture(sprite.getMinU(), sprite.getMinV()).light(light);
-        consumer.vertex(matrix, 1.0F, 1.0F, layer).color(color).texture(sprite.getMaxU(), sprite.getMinV()).light(light);
-        consumer.vertex(matrix, 1.0F, -1.0F, layer).color(color).texture(sprite.getMaxU(), sprite.getMaxV()).light(light);
-        consumer.vertex(matrix, -1.0F, -1.0F, layer).color(color).texture(sprite.getMinU(), sprite.getMaxV()).light(light);
+        consumer.vertex(matrix, -1.0F, 1.0F, layer).color(color).texture(u0, sprite.getMinV()).light(light);
+        consumer.vertex(matrix, 1.0F, 1.0F, layer).color(color).texture(u1, sprite.getMinV()).light(light);
+        consumer.vertex(matrix, 1.0F, -1.0F, layer).color(color).texture(u1, sprite.getMaxV()).light(light);
+        consumer.vertex(matrix, -1.0F, -1.0F, layer).color(color).texture(u0, sprite.getMaxV()).light(light);
         matrices.pop();
     }
 
