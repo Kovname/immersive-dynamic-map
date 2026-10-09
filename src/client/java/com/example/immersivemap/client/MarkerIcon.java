@@ -15,7 +15,7 @@ import net.minecraft.util.Identifier;
  */
 public enum MarkerIcon {
     BANNER("banner", null),
-    /** A gray copy of the vanilla red marker, tinted with the dye. */
+    /** A gray map pin, tinted with the dye. */
     MARKER("marker", ImmersiveMapMod.id("marker")),
     HOME("home", ImmersiveMapMod.id("home")),
     NETHER_PORTAL("portal", ImmersiveMapMod.id("portal")),
