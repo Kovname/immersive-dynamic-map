@@ -82,6 +82,15 @@ public class ModMenuIntegration implements ModMenuApi {
             caves.addEntry(e.startIntSlider(option("caveViewDistance"), c.caveViewDistance, CaveMapper.MIN_DISTANCE, CaveMapper.MAX_DISTANCE)
                     .setDefaultValue(d.caveViewDistance).setTooltip(tooltip("caveViewDistance"))
                     .setSaveConsumer(v -> c.caveViewDistance = v).build());
+            caves.addEntry(e.startIntSlider(option("caveLayerBlend"), c.caveLayerBlend, 0, 100)
+                    .setDefaultValue(d.caveLayerBlend).setTextGetter(v -> Text.literal(v + "%"))
+                    .setTooltip(tooltip("caveLayerBlend")).setSaveConsumer(v -> c.caveLayerBlend = v).build());
+            caves.addEntry(e.startIntSlider(option("caveLayersAbove"), c.caveLayersAbove, 0, 4)
+                    .setDefaultValue(d.caveLayersAbove).setTooltip(tooltip("caveLayersAbove"))
+                    .setSaveConsumer(v -> c.caveLayersAbove = v).build());
+            caves.addEntry(e.startIntSlider(option("caveLayersBelow"), c.caveLayersBelow, 0, 4)
+                    .setDefaultValue(d.caveLayersBelow).setTooltip(tooltip("caveLayersBelow"))
+                    .setSaveConsumer(v -> c.caveLayersBelow = v).build());
 
             ConfigCategory performance = builder.getOrCreateCategory(Text.translatable("config.immersive_map.performance"));
             performance.addEntry(e.startFloatField(option("scanBudgetMs"), c.scanBudgetMs)
