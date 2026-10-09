@@ -152,7 +152,7 @@ public final class MapDrawer {
             boolean previewing = panel != null && panel.edits(marker);
             MarkerIcon icon = previewing ? panel.icon() : marker.icon();
             DyeColor color = previewing ? panel.color() : marker.color();
-            drawMarker(matrices, vertexConsumers, icon.sprite(color), x, z, icon.tint(color), depth, light);
+            drawMarker(matrices, vertexConsumers, icon.sprite(color), x, z, -1, depth, light);
             if (config.alwaysShowMarkerNames && !marker.name().isEmpty() && marker != hovered) {
                 drawName(matrices, vertexConsumers, client.textRenderer, Text.literal(marker.name()), x, z, light);
             }
@@ -165,7 +165,7 @@ public final class MapDrawer {
                 float pulse = 0.5F + 0.5F * MathHelper.sin((Util.getMeasuringTimeMs() % 62832L) / 160.0F);
                 int alpha = (int) (130.0F + 125.0F * pulse);
                 drawMarker(matrices, vertexConsumers, panel.icon().sprite(panel.color()), x, z,
-                        alpha << 24 | panel.icon().tint(panel.color()) & 0xFFFFFF, depth, light);
+                        alpha << 24 | 0xFFFFFF, depth, light);
             }
         }
 

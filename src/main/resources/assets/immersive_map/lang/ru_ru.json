@@ -101,7 +101,7 @@
   "config.immersive_map.option.showCursorBiome": "Биом под курсором",
   "config.immersive_map.option.showCursorBiome.tooltip": "Пишет название биома на краю карты.",
   "marker.immersive_map.icon.banner": "Флаг",
-  "marker.immersive_map.icon.marker": "Метка",
+  "marker.immersive_map.icon.dungeon": "Подземелье",
   "marker.immersive_map.icon.home": "Дом",
   "marker.immersive_map.icon.portal": "Портал в Незер",
   "marker.immersive_map.icon.end_portal": "Портал в Энд",

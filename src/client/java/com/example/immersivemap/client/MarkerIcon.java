@@ -11,12 +11,11 @@ import net.minecraft.util.Identifier;
 
 /**
  * Marker icons, all from the vanilla map decorations atlas: vanilla decorations plus icons in the same 8x8 style that
- * this mod adds to that atlas through {@code textures/map/decorations}. The banner and the marker take a dye color.
+ * this mod adds to that atlas through {@code textures/map/decorations}. The banner takes a dye color.
  */
 public enum MarkerIcon {
     BANNER("banner", null),
-    /** A gray map pin, tinted with the dye. */
-    MARKER("marker", ImmersiveMapMod.id("marker")),
+    DUNGEON("dungeon", ImmersiveMapMod.id("dungeon")),
     HOME("home", ImmersiveMapMod.id("home")),
     NETHER_PORTAL("portal", ImmersiveMapMod.id("portal")),
     END_PORTAL("end_portal", ImmersiveMapMod.id("end_portal")),
@@ -52,12 +51,7 @@ public enum MarkerIcon {
     }
 
     public boolean colorable() {
-        return this == BANNER || this == MARKER;
-    }
-
-    /** ARGB to draw the sprite with: the dye for the marker, plain white for every other icon. */
-    public int tint(DyeColor color) {
-        return this == MARKER ? 0xFF000000 | color.getEntityColor() : -1;
+        return this == BANNER;
     }
 
     public Identifier spriteId(DyeColor color) {
