@@ -101,7 +101,7 @@ public final class MarkerPanel {
     }
 
     public static MarkerPanel death(Identifier dimension, int x, int z, boolean focusOnEdit) {
-        return new MarkerPanel(Kind.DEATH, null, dimension, x, z, MarkerIcon.CROSS, DyeColor.RED, "", focusOnEdit);
+        return new MarkerPanel(Kind.DEATH, null, dimension, x, z, MarkerIcon.BANNER, DyeColor.RED, "", focusOnEdit);
     }
 
     public Kind kind() {
@@ -424,7 +424,7 @@ public final class MarkerPanel {
             } else if (target == Target.ICON && hovered == i) {
                 c.fill(cx, cy, cx + CELL, cy + CELL, WASH);
             }
-            c.sprite(ICONS[i].sprite(color), cx + 1.0F, cy + 1.0F, 8.0F, -1);
+            c.sprite(ICONS[i].sprite(color), cx + 1.0F, cy + 1.0F, 8.0F, ICONS[i].tint(color));
         }
 
         Text caption;
@@ -488,7 +488,7 @@ public final class MarkerPanel {
 
     private void renderCard(PanelCanvas c, Target target) {
         Sprite sprite = kind == Kind.DEATH ? MarkerIcon.sprite(MarkerIcon.DEATH) : icon.sprite(color);
-        c.sprite(sprite, 9.0F, 9.0F, 16.0F, -1);
+        c.sprite(sprite, 9.0F, 9.0F, 16.0F, kind == Kind.DEATH ? -1 : icon.tint(color));
         Text title = kind == Kind.DEATH ? Text.translatable("map.immersive_map.death")
                 : name.text().isEmpty() ? icon.displayName() : Text.literal(name.text());
         if (target == Target.TITLE) {

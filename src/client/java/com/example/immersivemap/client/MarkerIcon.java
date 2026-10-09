@@ -10,24 +10,25 @@ import net.minecraft.util.DyeColor;
 import net.minecraft.util.Identifier;
 
 /**
- * Marker icons, all taken from the vanilla map decorations atlas: vanilla decorations, plus a few in the same 8x8
- * style that this mod adds to that atlas through {@code textures/map/decorations}. Only the banner takes a dye color.
+ * Marker icons, all from the vanilla map decorations atlas: vanilla decorations plus icons in the same 8x8 style that
+ * this mod adds to that atlas through {@code textures/map/decorations}. The banner and the marker take a dye color.
  */
 public enum MarkerIcon {
     BANNER("banner", null),
+    /** A gray copy of the vanilla red marker, tinted with the dye. */
+    MARKER("marker", ImmersiveMapMod.id("marker")),
     HOME("home", ImmersiveMapMod.id("home")),
-    STAR("star", ImmersiveMapMod.id("star")),
-    HEART("heart", ImmersiveMapMod.id("heart")),
-    CHEST("chest", ImmersiveMapMod.id("chest")),
-    MINE("mine", ImmersiveMapMod.id("mine")),
+    NETHER_PORTAL("portal", ImmersiveMapMod.id("portal")),
+    END_PORTAL("end_portal", ImmersiveMapMod.id("end_portal")),
+    XP_FARM("xp_farm", ImmersiveMapMod.id("xp_farm")),
+    TRADING("trading", ImmersiveMapMod.id("trading")),
+    DIAMONDS("diamonds", ImmersiveMapMod.id("diamonds")),
     FARM("farm", ImmersiveMapMod.id("farm")),
-    PORTAL("portal", ImmersiveMapMod.id("portal")),
+    STORAGE("chest", ImmersiveMapMod.id("chest")),
+    SPAWNER("spawner", ImmersiveMapMod.id("spawner")),
     DANGER("danger", ImmersiveMapMod.id("danger")),
-    CROSS("cross", Identifier.ofVanilla("target_x")),
-    POINTER("pointer", Identifier.ofVanilla("target_point")),
-    RED("red", Identifier.ofVanilla("red_marker")),
-    BLUE("blue", Identifier.ofVanilla("blue_marker")),
-    GREEN("green", Identifier.ofVanilla("frame")),
+    FORTRESS("fortress", ImmersiveMapMod.id("fortress")),
+    END_CITY("end_city", ImmersiveMapMod.id("end_city")),
     VILLAGE("village", Identifier.ofVanilla("plains_village")),
     MANSION("mansion", Identifier.ofVanilla("woodland_mansion")),
     MONUMENT("monument", Identifier.ofVanilla("ocean_monument")),
@@ -51,7 +52,12 @@ public enum MarkerIcon {
     }
 
     public boolean colorable() {
-        return sprite == null;
+        return this == BANNER || this == MARKER;
+    }
+
+    /** ARGB to draw the sprite with: the dye for the marker, plain white for every other icon. */
+    public int tint(DyeColor color) {
+        return this == MARKER ? 0xFF000000 | color.getEntityColor() : -1;
     }
 
     public Identifier spriteId(DyeColor color) {
@@ -70,6 +76,7 @@ public enum MarkerIcon {
         return VALUES[Math.floorMod(ordinal() + steps, VALUES.length)];
     }
 
+    /** Ids of icons that no longer exist load as the banner. */
     public static MarkerIcon byId(String id) {
         for (MarkerIcon icon : VALUES) {
             if (icon.id.equals(id)) {
